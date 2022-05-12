@@ -10,4 +10,31 @@
 `Python3.7+`
 `i2cylib >= 1.8.3`
 
-# 配置文件说明
+# 集成命令
+`i2ftps-setup` 服务器配置向导
+
+## 默认配置文件路径
+`/usr/share/i2ftp/server_conf.json`
+
+## 附：通讯协议说明
+### 通讯流程：
+
+### 协议结构：
+`TCP/IP` - `I2TCP` - `User`
+
+### User层数据包：
+
+ - 客户端命令 - “查询”：`LIST,<PATH>`
+
+   返回：`<bool 路径是否存在>,{'文件1':{size:<int 大小>,
+                                    time:<float 文件修改时间戳>}}`
+
+
+ - 客户端命令 - “请求下载”：`GETF,<PATH>`
+
+   返回：`<bool 请求是否接受>,[下载会话ID]`
+
+
+ - 客户端命令 - “通过会话ID下载”：`DOWN,<str 下载会话ID>,<int 文件指针偏移量>`
+
+   返回：`<bool 操作是否有效>,[bytes 数据内容 最大长度8192 Bytes]`

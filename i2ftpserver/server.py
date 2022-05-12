@@ -7,6 +7,7 @@
 
 
 import threading
+import queue
 from i2cylib.network.I2TCP import Server
 from i2cylib.utils.logger import Logger
 from i2ftpserver.config import Config
@@ -26,6 +27,7 @@ class I2ftpServer:
         self.__flag_kill = False
         self.threads_running = {"loop": False}
         self.connections = []
+        self.__cmd_queue = queue.Queue(maxsize=1000)
 
     def start(self):
         self.__server = Server(key=self.config.keychain,
@@ -45,3 +47,4 @@ class I2ftpServer:
 
         while self.__flag_kill:
             con = self.__server.get_connection()
+

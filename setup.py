@@ -35,8 +35,6 @@ setuptools.setup(
     entry_points={'console_scripts':
         [
             "i2ftps-setup = i2cylib.database.I2DB.i2cydbserver:main",
-            "i2en = i2cylib.crypto.I2En.icen:main",
-            "i2scan = i2cylib.network.I2Scan.i2scan:main"
         ]
     }
 )
