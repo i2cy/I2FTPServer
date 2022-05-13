@@ -42,6 +42,11 @@ class I2ftpServer:
 
         self.connections = []                                       # handler池
         self.__cmd_queue = queue.Queue(maxsize=MAX_CMD_QUEUE)       # 命令池
+        # 文件会话对象储存格式：{<会话ID>:[最后活动的时间戳,
+        #                             文件路径,
+        #                             文件sha256对象,
+        #                             文件大小,
+        #                             最后一次sha256计算文件指针偏移量]}
         self.__file_session = {}                                    # 文件会话池
 
     def start(self):
@@ -84,6 +89,10 @@ class I2ftpServer:
         if self.threads_running["file_session_manage_loop"]:
             return
         self.threads_running["file_session_manage_loop"] = True
+
+        while self.__flag_kill:
+            for ele in self.__file_session.keys():
+                pass
 
     def __loop(self):
         assert isinstance(self.__server, Server)
