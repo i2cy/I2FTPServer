@@ -27,7 +27,7 @@ FILE_SESSION_TIMEOUT = 120
 FULL_SPEED_TIMEOUT = 20
 
 
-__VERSION = "1.0"
+VERSION = "1.0"
 
 
 class FileSession:
@@ -386,6 +386,7 @@ class I2ftpServer:
         while self.__flag_kill:
             con = self.__server.get_connection()
             if con is not None:
+                con.send(b"I2FTP " + VERSION.encode())
                 self.connections.append(con)
 
         self.threads_running["loop"] = False
