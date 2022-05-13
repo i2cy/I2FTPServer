@@ -16,7 +16,7 @@ class Config(object):
         self.ftp_root = "/usr/share/i2ftp/root"         # FTP 根目录
         self.tls_enabled = False                        # 启用I2TCP的传输层加密
         self.keychain = b""                             # 密钥
-        self.upload_disabled = False                    # 禁用上传功能
+        self.read_only = False                          # 服务器是否只读
         self.port = 26842                               # 端口
         self.log_file = "/usr/share/i2ftp/i2ftp.log"    # 日志文件
         self.log_level = "DEBUG"                        # 日志等级（DEBUG、INFO、WARNING、ERROR、CRITICAL）
@@ -29,7 +29,7 @@ class Config(object):
                    "port":              self.port,
                    "keychain":          self.keychain,
                    "tls":               self.tls_enabled,
-                   "disable_upload":    self.upload_disabled,
+                   "read_only":         self.read_only,
                    "log_file":          self.log_file,
                    "log_level":         self.log_level}
 
@@ -44,5 +44,5 @@ class Config(object):
         self.ftp_root = configs["root"]
         self.port = configs["port"]
         self.tls_enabled = configs["tls"]
-        self.upload_disabled = configs["disable_upload"]
+        self.read_only = configs["read_only"]
         self.keychain = configs["keychain"]
