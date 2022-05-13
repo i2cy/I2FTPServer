@@ -19,11 +19,12 @@ from i2cylib.utils.path import path_fixer
 from i2cylib.utils.bytes import random_keygen
 from i2ftpserver.config import Config
 
-
 TIMEOUT = 20
 MAX_CONNECTIONS = 200
 MAX_UPDOWN_SESSIONS = 500
 MAX_CMD_QUEUE = 500
+FILE_SESSION_TIMEOUT = 120
+FULL_SPEED_TIMEOUT = 20
 
 
 class FileSession:
@@ -36,45 +37,82 @@ class FileSession:
         self.__fp = 0
         self.__sha256_fp = 0
         self.__lock_io = False
+        self.__last_io_ts = time.time()
 
     def seek(self, offset):
         if self.__lock_io:
             time.sleep(0.001)
         self.__lock_io = True
+        self.__last_io_ts = time.time()
 
         self.__fp = offset
         self.io.seek(offset)
 
         self.__lock_io = False
 
-    def calc_sha256(self, step=True):
-        if self.__flag_sha256_avaliable:
-            return
+    def write(self, data):
         if self.__lock_io:
             time.sleep(0.001)
         self.__lock_io = True
+        self.__last_io_ts = time.time()
+
+        ret = self.io.write(data)
+
+        self.__lock_io = False
+        return ret
+
+    def read(self, length):
+        if self.__lock_io:
+            time.sleep(0.001)
+        self.__lock_io = True
+        self.__last_io_ts = time.time()
+
+        ret = self.io.read(length)
+
+        self.__lock_io = False
+        return ret
+
+    def calc_sha256(self, step=True, size=8192):
+        if self.__flag_sha256_avaliable:
+            return False
+        if self.__lock_io:
+            time.sleep(0.001)
+        self.__lock_io = True
+        self.io.seek(self.__sha256_fp)
 
         if step:
-            self.io.seek(self.__sha256_fp)
-            data = self.io.read(4096)
+            data = self.io.read(size)
             length = len(data)
-            if length < 4096:
+            if length < size:
                 self.__flag_sha256_avaliable = True
             self.__sha256_fp += length
             self.sha256.update(data)
-            self.io.seek(self.__fp)
         else:
-            self.io.seek(self.__sha256_fp)
             while True:
-                data = self.io.read(4096)
+                data = self.io.read(size)
                 if not data:
                     break
                 self.sha256.update(data)
             self.__flag_sha256_avaliable = True
 
+        self.io.seek(self.__fp)
+
         self.__lock_io = False
 
+        return True
 
+    def age(self):
+        return time.time() - self.__last_io_ts
+
+    def sha256(self):
+        self.__last_io_ts = time.time()
+        if self.__flag_sha256_avaliable:
+            return True, self.sha256.hexdigest()
+        else:
+            return False, None
+
+    def close(self):
+        self.io.close()
 
 
 class I2ftpServer:
@@ -104,14 +142,14 @@ class I2ftpServer:
         self.threads_running = {"loop": False,
                                 "file_session_manage_loop": False}
 
-        self.connections = []                                       # handler池
-        self.__cmd_queue = queue.Queue(maxsize=MAX_CMD_QUEUE)       # 命令池
+        self.connections = []  # handler池
+        self.__cmd_queue = queue.Queue(maxsize=MAX_CMD_QUEUE)  # 命令池
         # 文件会话对象储存格式：{<会话ID>:[最后活动的时间戳,
         #                             文件路径,
         #                             文件sha256对象,
         #                             文件大小,
         #                             最后一次sha256计算文件指针偏移量]}
-        self.__file_session = {}                                    # 文件会话池
+        self.__file_session = {}  # 文件会话池
 
     def start(self):
         """
@@ -201,7 +239,7 @@ class I2ftpServer:
                             "time": os.path.getmtime(ele)
                         }
                     })
-            ret = json.dumps(res).encode("utf-8")
+            ret = b"\x01," + json.dumps(res).encode("utf-8")
 
         elif cmd == b"GETF":  # 创建下载会话指令
             # 检查会话池是否已满
@@ -219,10 +257,15 @@ class I2ftpServer:
             if not path.exists() or path.is_dir():
                 return b"\x00,path does not exist or target is a directory"
 
-            session_id = random_keygen(64)
-            session =
+            session = FileSession(path)
 
-            self.__file_session.append(session)
+            session_id = random_keygen(64)
+            while session_id in self.__file_session:
+                session_id = random_keygen(64)
+
+            self.__file_session.update({session_id: session})
+
+            ret = b"\x01," + session_id
 
         return ret
 
@@ -231,9 +274,28 @@ class I2ftpServer:
             return
         self.threads_running["file_session_manage_loop"] = True
 
+        full_speed_ts = time.time()
+
         while self.__flag_kill:
             for ele in self.__file_session.keys():
-                pass
+                session = self.__file_session[ele]
+                assert isinstance(session, FileSession)
+
+                if self.__flag_kill:
+                    break
+
+                # 自动关闭不活动的会话
+                if session.age() > FILE_SESSION_TIMEOUT:
+                    session.close()
+                    continue
+
+                # 计算会话文件的sha256校验和
+                ret = session.calc_sha256(step=True)
+                if ret:
+                    full_speed_ts = time.time()
+
+                if full_speed_ts > FULL_SPEED_TIMEOUT:
+                    time.sleep(0.01)
 
     def __loop(self):
         assert isinstance(self.__server, Server)
@@ -246,7 +308,4 @@ class I2ftpServer:
             if con is not None:
                 self.connections.append(con)
 
-
-
         self.threads_running["loop"] = False
-
