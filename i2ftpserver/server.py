@@ -16,6 +16,7 @@ import json
 from i2cylib.network.I2TCP import Server
 from i2cylib.utils.logger import Logger
 from i2cylib.utils.path import path_fixer
+from i2cylib.utils.bytes import random_keygen
 from i2ftpserver.config import Config
 
 
@@ -23,6 +24,57 @@ TIMEOUT = 20
 MAX_CONNECTIONS = 200
 MAX_UPDOWN_SESSIONS = 500
 MAX_CMD_QUEUE = 500
+
+
+class FileSession:
+
+    def __init__(self, path):
+        self.io = open(path, "rb+")
+        self.sha256 = hashlib.sha256()
+        self.size = os.path.getsize(path)
+        self.__flag_sha256_avaliable = False
+        self.__fp = 0
+        self.__sha256_fp = 0
+        self.__lock_io = False
+
+    def seek(self, offset):
+        if self.__lock_io:
+            time.sleep(0.001)
+        self.__lock_io = True
+
+        self.__fp = offset
+        self.io.seek(offset)
+
+        self.__lock_io = False
+
+    def calc_sha256(self, step=True):
+        if self.__flag_sha256_avaliable:
+            return
+        if self.__lock_io:
+            time.sleep(0.001)
+        self.__lock_io = True
+
+        if step:
+            self.io.seek(self.__sha256_fp)
+            data = self.io.read(4096)
+            length = len(data)
+            if length < 4096:
+                self.__flag_sha256_avaliable = True
+            self.__sha256_fp += length
+            self.sha256.update(data)
+            self.io.seek(self.__fp)
+        else:
+            self.io.seek(self.__sha256_fp)
+            while True:
+                data = self.io.read(4096)
+                if not data:
+                    break
+                self.sha256.update(data)
+            self.__flag_sha256_avaliable = True
+
+        self.__lock_io = False
+
+
 
 
 class I2ftpServer:
@@ -97,6 +149,20 @@ class I2ftpServer:
 
         self.__server.kill()
 
+    def __check_path(self, path):
+        # 检查路径是否符合安全规定
+        raw = path.replace("\\", "/").split("/")
+        path = self.root.joinpath(path)
+
+        if ".." in raw or not raw[0]:
+            return False, b"\x00,requesting parent directory or using absolute path is not allowed"
+
+        # 检查路径是否存在
+        if not path.exists():
+            return False, b"\x00,path requested does not exist"
+
+        return True, b""
+
     def __process_requests(self, requests):
         assert isinstance(requests, bytes)
         requests = requests.split(b",", 1)
@@ -109,15 +175,10 @@ class I2ftpServer:
             res = {}
             path = payload.decode("utf-8")
             # 检查路径是否符合安全规定
-            raw = path.replace("\\", "/").split("/")
+            status, ret = self.__check_path(path)
+            if not status:
+                return ret
             path = self.root.joinpath(path)
-
-            if ".." in raw or not raw[0]:
-                return b"\x00,requesting parent directory or using absolute path is not allowed"
-
-            # 检查路径是否存在
-            if not path.exists():
-                return b"\x00,path requested does not exist"
 
             # 当路径是文件时
             if path.is_file():
@@ -142,11 +203,33 @@ class I2ftpServer:
                     })
             ret = json.dumps(res).encode("utf-8")
 
+        elif cmd == b"GETF":  # 创建下载会话指令
+            # 检查会话池是否已满
+            if len(self.__file_session) >= MAX_UPDOWN_SESSIONS:
+                return b"\x00,file session full on server"
+
+            # 检查文件路径是否符合要求
+            path = payload.decode("utf-8")
+            status, ret = self.__check_path(path)
+            if not status:
+                return ret
+            path = self.root.joinpath(path)
+
+            # 检查文件是否存在且是文件
+            if not path.exists() or path.is_dir():
+                return b"\x00,path does not exist or target is a directory"
+
+            session_id = random_keygen(64)
+            session =
+
+            self.__file_session.append(session)
+
+        return ret
+
     def __file_session_manage_loop(self):
         if self.threads_running["file_session_manage_loop"]:
             return
         self.threads_running["file_session_manage_loop"] = True
-
 
         while self.__flag_kill:
             for ele in self.__file_session.keys():
