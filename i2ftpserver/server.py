@@ -9,8 +9,13 @@
 import threading
 import queue
 import time
+import hashlib
+import os
+import pathlib
+import json
 from i2cylib.network.I2TCP import Server
 from i2cylib.utils.logger import Logger
+from i2cylib.utils.path import path_fixer
 from i2ftpserver.config import Config
 
 
@@ -31,10 +36,17 @@ class I2ftpServer:
 
         assert isinstance(config, Config)
 
+        self.__header = "[i2ftp]"
         self.config = config
         self.__server = None
         self.logger = Logger(config.log_file,
                              level=config.log_level)
+        self.root = pathlib.Path(config.ftp_root)
+        if not self.root.is_absolute():
+            self.logger.CRITICAL("{} [init] root path has to be absolute path")
+            raise Exception("root path in configuration has to be absolute path")
+        if not self.root.exists():
+            path_fixer(config.ftp_root)
 
         self.__flag_kill = False
         self.threads_running = {"loop": False,
@@ -85,10 +97,56 @@ class I2ftpServer:
 
         self.__server.kill()
 
+    def __process_requests(self, requests):
+        assert isinstance(requests, bytes)
+        requests = requests.split(b",", 1)
+        cmd = requests[0]
+        payload = requests[1]
+
+        ret = b""
+
+        if cmd == b"LIST":  # 查询命令
+            res = {}
+            path = payload.decode("utf-8")
+            # 检查路径是否符合安全规定
+            raw = path.replace("\\", "/").split("/")
+            path = self.root.joinpath(path)
+
+            if ".." in raw or not raw[0]:
+                return b"\x00,requesting parent directory or using absolute path is not allowed"
+
+            # 检查路径是否存在
+            if not path.exists():
+                return b"\x00,path requested does not exist"
+
+            # 当路径是文件时
+            if path.is_file():
+                res.update({
+                    path.name: {
+                        "is_dir": False,
+                        "size": os.path.getsize(path),
+                        "time": os.path.getmtime(path)
+                    }
+                })
+
+            # 当路径是目录时
+            else:
+                path = [ele for ele in path.glob("*")]
+                for ele in path:
+                    res.update({
+                        ele.name: {
+                            "is_dir": ele.is_dir(),
+                            "size": os.path.getsize(ele),
+                            "time": os.path.getmtime(ele)
+                        }
+                    })
+            ret = json.dumps(res).encode("utf-8")
+
     def __file_session_manage_loop(self):
         if self.threads_running["file_session_manage_loop"]:
             return
         self.threads_running["file_session_manage_loop"] = True
+
 
         while self.__flag_kill:
             for ele in self.__file_session.keys():
@@ -102,6 +160,10 @@ class I2ftpServer:
 
         while self.__flag_kill:
             con = self.__server.get_connection()
+            if con is not None:
+                self.connections.append(con)
+
+
 
         self.threads_running["loop"] = False
 
