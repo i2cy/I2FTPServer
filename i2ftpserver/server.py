@@ -44,7 +44,7 @@ class FileSession:
         else:
             self.io = open(path, "rb+")
         self.readonly = readonly
-        self.sha256 = hashlib.sha256()
+        self.__sha256 = hashlib.sha256()
         self.size = os.path.getsize(path)
         self.__flag_sha256_available = False
         self.fp = 0
@@ -134,13 +134,13 @@ class FileSession:
             if length < size:
                 self.__flag_sha256_available = True
             self.__sha256_fp += length
-            self.sha256.update(data)
+            self.__sha256.update(data)
         else:
             while True:
                 data = self.io.read(size)
                 if not data:
                     break
-                self.sha256.update(data)
+                self.__sha256.update(data)
             self.__flag_sha256_available = True
 
         self.io.seek(self.fp)
@@ -166,7 +166,7 @@ class FileSession:
         """
         self.__last_io_ts = time.time()
         if self.__flag_sha256_available:
-            return True, self.sha256.hexdigest()
+            return True, self.__sha256.hexdigest()
         else:
             return False, None
 
@@ -380,6 +380,10 @@ class I2ftpServer:
             ret = b"\x01," + session_id
 
         elif cmd == b"UPLD":  # 通过会话上传数据
+            # 若服务器只读则拒绝
+            if self.config.read_only:
+                return b"\x00,read-only server"
+
             # 分割指令
             session_id = payload[:16]
             fp = int().from_bytes(payload[17:25], "little", signed=True)
@@ -392,10 +396,42 @@ class I2ftpServer:
             session = self.__file_session[session_id]
             assert isinstance(session, FileSession)
 
+            # 检查会话是否是上传会话
+            if session.readonly:
+                return b"\x00,read-only session"
+
             # 储存数据
             session.seek(fp)
             fp += session.write(data)
             ret = b"\x01," + fp.to_bytes(8, "little", signed=True)
+
+        elif cmd == b"CLOZ":
+            session_id = payload
+
+            # 检查会话是否有效
+            if session_id not in self.__file_session:
+                return b"\x00,invalid session id quested"
+
+            session = self.__file_session[session_id]
+            assert isinstance(session, FileSession)
+
+            # 若会话为下载会话
+            if session.readonly:
+                status, sha256 = session.sha256()
+
+                # 检查sha256值是否运算完毕
+                if not status:
+                    return b"\x00,session is still calculating file's sha256 sum"
+
+                # 关闭会话
+                session.close()
+                ret = b"\x01," + sha256.encode("utf-8")
+
+            # 若为上传会话
+            else:
+                # 关闭会话
+                session.close()
+                ret = b"\x01"
 
         return ret
 
