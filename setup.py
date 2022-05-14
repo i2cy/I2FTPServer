@@ -34,7 +34,8 @@ setuptools.setup(
     python_requires=">=3.6",
     entry_points={'console_scripts':
         [
-            "i2ftps-setup = i2cylib.database.I2DB.i2cydbserver:main",
+            "i2ftps-setup = i2ftpserver.config:main",
+            "i2ftps = i2ftpserver.server:main"
         ]
     }
 )

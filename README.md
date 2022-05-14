@@ -16,11 +16,12 @@
 `pip install i2ftp-server`
 
 # 环境需求
-`Python3.7+`
-`i2cylib >= 1.8.3`
+ - `Python3.7+`
+ - `i2cylib >= 1.8.3`
 
 # 集成命令
-`i2ftps-setup` 服务器配置向导
+ - `i2ftps-setup` 服务器配置向导
+ - `i2ftps` 服务器启动
 
 ## 默认配置文件路径
 `/usr/share/i2ftp/server_conf.json`

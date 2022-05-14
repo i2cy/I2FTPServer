@@ -18,6 +18,7 @@ from i2cylib.network.I2TCP import Server, Handler
 from i2cylib.utils.logger import Logger
 from i2cylib.utils.path import path_fixer
 from i2cylib.utils.bytes import random_keygen
+from i2cylib.utils.args import get_args
 from i2ftpserver.config import Config
 
 TIMEOUT = 20
@@ -641,3 +642,44 @@ class I2ftpServer:
                 ))
 
         self.threads_running["loop"] = False
+
+
+def mannual():
+    print("""I2FTP Server [by I2cy] v{}
+    
+Usage: i2ftps [-c CONFIG]
+
+Options:
+ -c --config CONFIG             - config JSON file path
+                                  (default: /usr/share/i2ftp/
+                                  server_conf.json)
+ 
+ -h --help                      - display this message
+ 
+Examples:
+ >i2ftps
+ >i2ftps -c server_conf.json
+    """.format(VERSION))
+
+
+def main():
+    config = "/usr/share/i2ftp/server_conf.json"
+
+    opts = get_args()
+
+    for opt in opts.keys():
+        if opt in ("-c", "--config"):
+            config = opts[opt]
+        elif opt in ("-h", "--help"):
+            mannual()
+            return
+
+    config = pathlib.Path(config)
+    if not config.exists():
+        config = Config()
+        config.dump(config)
+
+    server = I2ftpServer(config)
+
+    while True:
+        
