@@ -13,6 +13,7 @@ import hashlib
 import os
 import pathlib
 import json
+import shutil
 from i2cylib.network.I2TCP import Server
 from i2cylib.utils.logger import Logger
 from i2cylib.utils.path import path_fixer
@@ -255,10 +256,6 @@ class I2ftpServer:
         if ".." in raw or not raw[0]:
             return False, b"\x00,requesting parent directory or using absolute path is not allowed"
 
-        # 检查路径是否存在
-        if not path.exists():
-            return False, b"\x00,path requested does not exist"
-
         return True, b""
 
     def __process_requests(self, requests):
@@ -277,6 +274,10 @@ class I2ftpServer:
             if not status:
                 return ret
             path = self.root.joinpath(path)
+
+            # 检查路径是否存在
+            if not path.exists():
+                return b"\x00,path requested does not exist"
 
             # 当路径是文件时
             if path.is_file():
@@ -405,7 +406,7 @@ class I2ftpServer:
             fp += session.write(data)
             ret = b"\x01," + fp.to_bytes(8, "little", signed=True)
 
-        elif cmd == b"CLOZ":
+        elif cmd == b"CLOZ":  # 关闭会话命令
             session_id = payload
 
             # 检查会话是否有效
@@ -432,6 +433,109 @@ class I2ftpServer:
                 # 关闭会话
                 session.close()
                 ret = b"\x01"
+
+        elif cmd == b"FIOP":  # 文件操作命令
+            # 若服务器只读则拒绝
+            if self.config.read_only:
+                return b"\x00,read-only server"
+
+            # 分割命令
+            command = payload[0]
+            args = payload[2:].decode("utf-8")
+            paths = args.split(",")
+
+            # 检查文件路径是否符合要求
+            for path in paths:
+                path = payload.decode("utf-8")
+                status, ret = self.__check_path(path)
+                if not status:
+                    return ret
+
+            # 重命名
+            if command == 0:
+                path0 = self.root.joinpath(paths[0])
+                path1 = self.root.joinpath(paths[1])
+
+                # 检查路径是否存在
+                if not path0.exists():
+                    return b"\x00,path requested does not exist"
+                if path1.exists():
+                    return b"\x00,target name already exists"
+
+                try:
+                    os.rename(path0, path1)
+                except Exception as err:
+                    return b"\x00," + str(err).encode("utf-8")
+
+            # 移动
+            elif command == 1:
+                path0 = self.root.joinpath(paths[0])
+                path1 = self.root.joinpath(paths[1])
+
+                # 检查路径是否存在
+                if not path0.exists():
+                    return b"\x00,path requested does not exist"
+                if path1.exists():
+                    return b"\x00,target path already exists"
+
+                # 移动文件
+                try:
+                    shutil.move(path0, path1)
+                except Exception as err:
+                    return b"\x00," + str(err).encode("utf-8")
+
+            # 复制
+            elif command == 2:
+                path0 = self.root.joinpath(paths[0])
+                path1 = self.root.joinpath(paths[1])
+
+                # 检查路径是否存在
+                if not path0.exists():
+                    return b"\x00,path requested does not exist"
+                if path1.exists():
+                    return b"\x00,target path already exists"
+
+                # 复制文件、文件夹
+                try:
+                    if path0.is_file():
+                        shutil.copyfile(path0, path1)
+                    else:
+                        shutil.copytree(path0, path1)
+                except Exception as err:
+                    return b"\x00," + str(err).encode("utf-8")
+
+            # 删除
+            elif command == 3:
+                path0 = self.root.joinpath(paths[0])
+
+                # 检查路径是否存在
+                if not path0.exists():
+                    return b"\x00,path requested does not exist"
+
+                # 删除文件、文件夹
+                try:
+                    if path0.is_file():
+                        os.remove(path0)
+                    else:
+                        shutil.rmtree(path0)
+                except Exception as err:
+                    return b"\x00," + str(err).encode("utf-8")
+
+            # 创建文件夹
+            elif command == 4:
+                path0 = self.root.joinpath(paths[0])
+
+                # 检查路径是否存在
+                if path0.exists():
+                    return b"\x00,target path already exists"
+
+                # 创建文件夹
+                try:
+                    os.makedirs(path0)
+                except Exception as err:
+                    return b"\x00," + str(err).encode("utf-8")
+
+            ret = b"\x01"
 
         return ret
 
