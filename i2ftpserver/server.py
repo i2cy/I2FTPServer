@@ -345,7 +345,7 @@ class I2ftpServer:
             data = session.read(8192)
             ret = b"\x01," + data
 
-        elif cmd == b"PULF":  # 请求上传
+        elif cmd == b"PULF":  # 创建上传会话命令
             # 若服务器只读则拒绝
             if self.config.read_only:
                 return b"\x00,read-only server"
@@ -379,6 +379,23 @@ class I2ftpServer:
 
             ret = b"\x01," + session_id
 
+        elif cmd == b"UPLD":  # 通过会话上传数据
+            # 分割指令
+            session_id = payload[:16]
+            fp = int().from_bytes(payload[17:25], "little", signed=True)
+            data = payload[26:]
+
+            # 检查会话是否有效
+            if session_id not in self.__file_session:
+                return b"\x00,invalid session id quested"
+
+            session = self.__file_session[session_id]
+            assert isinstance(session, FileSession)
+
+            # 储存数据
+            session.seek(fp)
+            fp += session.write(data)
+            ret = b"\x01," + fp.to_bytes(8, "little", signed=True)
 
         return ret
 
