@@ -345,6 +345,40 @@ class I2ftpServer:
             data = session.read(8192)
             ret = b"\x01," + data
 
+        elif cmd == b"PULF":  # 请求上传
+            # 若服务器只读则拒绝
+            if self.config.read_only:
+                return b"\x00,read-only server"
+
+            # 检查会话池是否已满
+            if len(self.__file_session) >= MAX_UPDOWN_SESSIONS:
+                return b"\x00,file session full on server"
+
+            # 检查文件路径是否符合要求
+            path = payload.decode("utf-8")
+            status, ret = self.__check_path(path)
+            if not status:
+                return ret
+            path = self.root.joinpath(path)
+
+            # 检查路径是否是文件夹
+            if path.is_dir():
+                return b"\x00,path does not exist or target is a directory"
+
+            # 若路径不存在则创建路径
+            path_fixer(path.as_posix())
+
+            # 建立会话
+            session = FileSession(path, readonly=False)
+
+            session_id = random_keygen(16)
+            while session_id in self.__file_session:
+                session_id = random_keygen(16)
+
+            self.__file_session.update({session_id: session})
+
+            ret = b"\x01," + session_id
+
 
         return ret
 
