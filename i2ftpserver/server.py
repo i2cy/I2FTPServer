@@ -14,16 +14,16 @@ import os
 import pathlib
 import json
 import shutil
-from i2cylib.network.I2TCP import Server
+from i2cylib.network.I2TCP import Server, Handler
 from i2cylib.utils.logger import Logger
 from i2cylib.utils.path import path_fixer
 from i2cylib.utils.bytes import random_keygen
 from i2ftpserver.config import Config
 
 TIMEOUT = 20
-MAX_CONNECTIONS = 200
+MAX_CONNECTIONS = 100
 MAX_UPDOWN_SESSIONS = 500
-MAX_CMD_QUEUE = 500
+MAX_CMD_QUEUE = 1000
 FILE_SESSION_TIMEOUT = 120
 FULL_SPEED_TIMEOUT = 20
 
@@ -228,6 +228,7 @@ class I2ftpServer:
         self.__server.start()
         threading.Thread(target=self.__loop).start()
         threading.Thread(target=self.__file_session_manage_loop).start()
+        self.logger.INFO("{} I2FTP server started".format(self.__header))
 
     def stop(self):
         """
@@ -247,11 +248,11 @@ class I2ftpServer:
                     break
 
         self.__server.kill()
+        self.logger.INFO("{} I2FTP server stopped".format(self.__header))
 
     def __check_path(self, path):
         # 检查路径是否符合安全规定
         raw = path.replace("\\", "/").split("/")
-        path = self.root.joinpath(path)
 
         if ".." in raw or not raw[0]:
             return False, b"\x00,requesting parent directory or using absolute path is not allowed"
@@ -260,6 +261,7 @@ class I2ftpServer:
 
     def __process_requests(self, requests):
         assert isinstance(requests, bytes)
+        header = "[CmdProcess]"
         requests = requests.split(b",", 1)
         cmd = requests[0]
         payload = requests[1]
@@ -325,6 +327,10 @@ class I2ftpServer:
             while session_id in self.__file_session:
                 session_id = random_keygen(16)
 
+            self.logger.DEBUG("{} {} download session created (session ID: {})".format(
+                self.__header, header, session_id.hex()
+            ))
+
             self.__file_session.update({session_id: session})
 
             ret = b"\x01," + session_id
@@ -377,6 +383,9 @@ class I2ftpServer:
                 session_id = random_keygen(16)
 
             self.__file_session.update({session_id: session})
+            self.logger.DEBUG("{} {} upload session created (session ID: {})".format(
+                self.__header, header, session_id.hex()
+            ))
 
             ret = b"\x01," + session_id
 
@@ -433,6 +442,12 @@ class I2ftpServer:
                 # 关闭会话
                 session.close()
                 ret = b"\x01"
+
+            self.logger.DEBUG("{} {} file session closed (session ID: {})".format(
+                self.__header, header, session_id.hex()
+            ))
+
+            self.__file_session.pop(session_id)
 
         elif cmd == b"FIOP":  # 文件操作命令
             # 若服务器只读则拒绝
@@ -558,6 +573,7 @@ class I2ftpServer:
                 if session.age() > FILE_SESSION_TIMEOUT:
                     session.close()
                     self.__file_session.pop(ele)
+                    self.logger.WARNING("[]")
                     continue
 
                 # 计算会话文件的sha256校验和
@@ -574,10 +590,54 @@ class I2ftpServer:
             return
         self.threads_running["loop"] = True
 
+        full_speed_ts = time.time()
+        cnt = 0
+        header = "[MainLoop]"
+
         while self.__flag_kill:
-            con = self.__server.get_connection()
-            if con is not None:
-                con.send(b"I2FTP " + VERSION.encode())
-                self.connections.append(con)
+            cnt += 1
+            if cnt > 9999:
+                cnt = 0
+
+            if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
+                time.sleep(0.01)
+
+            # 接入连接
+            if not cnt % 5:
+                con = self.__server.get_connection()
+                if con is not None:
+                    assert isinstance(con, Handler)
+                    self.logger.INFO("{} {} incoming new connection ({}:{})".format(
+                        self.__header, header, con.addr[0], con.addr[1]
+                    ))
+                    full_speed_ts = time.time()
+                    con.send(b"I2FTP " + VERSION.encode())
+                    self.connections.append(con)
+
+            # 处理死亡的连接
+            if not cnt % 20:
+                self.connections = [con for con in self.connections if con.live]
+
+            # 储存命令队列
+            if not cnt % 2:
+                for i, ele in enumerate(self.connections):
+                    assert isinstance(ele, Handler)
+                    package = ele.get()
+                    if package is not None:
+                        self.__cmd_queue.put((ele, package))
+
+            # 执行命令
+            con, cmd = self.__cmd_queue.get(block=False)
+            self.logger.DEBUG("{} {} [{}:{}] processing \"{}\" request".format(
+                self.__header, header, con.addr[0], con.addr[1], cmd[0:4]
+            ))
+            try:
+                assert isinstance(con, Handler)
+                ret = self.__process_requests(cmd)
+                con.send(ret)
+            except Exception as err:
+                self.logger.ERROR("{} {} [{}:{}] failed to process requests of \"{}\", {}".format(
+                    self.__header, header, con.addr[0], con.addr[1], cmd, err
+                ))
 
         self.threads_running["loop"] = False
