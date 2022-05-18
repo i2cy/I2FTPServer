@@ -1,0 +1,12 @@
+README.md
+setup.py
+i2ftps/__init__.py
+i2ftps/config.py
+i2ftps/process_manage.py
+i2ftps/server.py
+i2ftps.egg-info/PKG-INFO
+i2ftps.egg-info/SOURCES.txt
+i2ftps.egg-info/dependency_links.txt
+i2ftps.egg-info/entry_points.txt
+i2ftps.egg-info/requires.txt
+i2ftps.egg-info/top_level.txt

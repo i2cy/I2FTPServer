@@ -1,0 +1,4 @@
+[console_scripts]
+i2ftps = i2ftps.server:main
+i2ftps-setup = i2ftps.config:main
+
