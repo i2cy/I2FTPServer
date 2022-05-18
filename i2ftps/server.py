@@ -19,7 +19,8 @@ from i2cylib.utils.logger import Logger
 from i2cylib.utils.path import path_fixer
 from i2cylib.utils.bytes import random_keygen
 from i2cylib.utils.args import get_args
-from i2ftpserver.config import Config
+from i2ftps.config import Config
+import i2ftps.process_manage as pm
 
 TIMEOUT = 20
 MAX_CONNECTIONS = 100
@@ -187,7 +188,7 @@ class I2ftpServer:
         """
         I2FTP object
 
-        :param config: i2ftpserver.Config
+        :param config: i2ftps.Config
         """
 
         assert isinstance(config, Config)
@@ -648,7 +649,7 @@ class I2ftpServer:
 def mannual():
     print("""I2FTP Server [by I2cy] v{}
     
-Usage: i2ftps [-c CONFIG]
+Usage: i2ftps [-c CONFIG] [start/stop Default: start]
 
 Options:
  -c --config CONFIG             - config JSON file path
@@ -660,6 +661,9 @@ Options:
 Examples:
  >i2ftps
  >i2ftps -c server_conf.json
+ >i2ftps -c server_conf.json start
+ >i2ftps stop
+ >i2ftps -c server_conf.json stop
     """.format(VERSION))
 
 
@@ -668,19 +672,38 @@ def main():
 
     opts = get_args()
 
+    operation = "start"
+
     for opt in opts.keys():
         if opt in ("-c", "--config"):
             config = opts[opt]
         elif opt in ("-h", "--help"):
             mannual()
             return
+        elif opt == 0:
+            operation = opts[0]
+            if operation not in ("start", "stop"):
+                print("unhandled operation \"{}\"".format(operation))
+                return
 
     config = pathlib.Path(config)
     if not config.exists():
         config = Config()
         config.dump(config)
 
-    server = I2ftpServer(config)
+    if operation == "start":
+        server = I2ftpServer(config)
 
-    while True:
+        try:
+            while True:
+                cmd = input("")
+                if cmd in ("quit", "stop", "kill"):
+                    break
+        except KeyboardInterrupt:
+            pass
+
+        server.stop()
+
+    else:
+        pm.stop(config)
         

@@ -10,8 +10,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="i2ftpserver",  # Replace with your own username
-    version="1.0.0",
+    name="i2ftps",  # Replace with your own username
+    version="0.0.1",
     author="I2cy Cloud",
     author_email="i2cy@outlook.com",
     description="A FTP server based on I2TCP",
@@ -34,8 +34,8 @@ setuptools.setup(
     python_requires=">=3.7",
     entry_points={'console_scripts':
         [
-            "i2ftps-setup = i2ftpserver.config:main",
-            "i2ftps = i2ftpserver.server:main"
+            "i2ftps-setup = i2ftps.config:main",
+            "i2ftps = i2ftps.server:main"
         ]
     }
 )

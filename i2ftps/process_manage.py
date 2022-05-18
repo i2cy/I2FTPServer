@@ -11,7 +11,7 @@ import time
 from i2cylib.network.I2TCP import Client
 from i2cylib.utils.logger import Logger
 from i2cylib.utils import args
-from i2ftpserver.config import Config
+from i2ftps.config import Config
 
 
 LOGGER = Logger(level="INFO")
@@ -21,6 +21,7 @@ KILL_TIMEOUT = 20
 def stop(config):
     # 连接到服务器
     assert isinstance(config, Config)
+    LOGGER.INFO("[Main] stopping target server".format(config.port))
     LOGGER.INFO("[Main] connecting to target server at port {}".format(config.port))
     clt = Client("localhost", config.port, config.keychain, logger=LOGGER)
 
@@ -58,4 +59,3 @@ def stop(config):
         LOGGER.ERROR("[Main] failed to decode feedback from server or failed to kill process, {}".format(
             err
         ))
-
