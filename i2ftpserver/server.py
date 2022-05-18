@@ -193,6 +193,7 @@ class I2ftpServer:
         assert isinstance(config, Config)
 
         self.__header = "[I2FTP]"
+        self.__pid = os.getpid()
         self.config = config
         self.__server = None
         self.logger = Logger(config.log_file,

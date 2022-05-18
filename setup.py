@@ -28,10 +28,10 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'i2cylib'
+        'i2cylib==1.8.6'
     ],
     packages=setuptools.find_packages(),
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     entry_points={'console_scripts':
         [
             "i2ftps-setup = i2ftpserver.config:main",
