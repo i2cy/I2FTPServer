@@ -103,7 +103,8 @@ def main():
             root = config.ftp_root
 
         try:
-            path_fixer(root)
+            if not os.path.exists(root):
+                os.makedirs(root)
         except Exception as err:
             print("error: {}".format(err))
             root = None

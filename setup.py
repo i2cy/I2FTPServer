@@ -19,8 +19,8 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/i2cy/i2ftp-server",
     project_urls={
-        "Bug Tracker": "https://github.com/i2cy/i2ftp-server/issues",
-        "Source Code": "https://github.com/i2cy/i2ftp-server",
+        "Bug Tracker": "https://github.com/i2cy/I2FTPServer/issues",
+        "Source Code": "https://github.com/i2cy/I2FTPServer",
     },
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -28,7 +28,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'i2cylib==1.8.6'
+        'i2cylib==1.8.7'
     ],
     packages=setuptools.find_packages(),
     python_requires=">=3.7",
