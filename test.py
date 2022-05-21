@@ -14,10 +14,10 @@ import json
 import tqdm
 
 
-TEST_FILENAME = "tc.mp4"
+TEST_FILENAME = "small.mp4"
 
-clt = Client("localhost", 2684, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
-             logger=Logger(level="INFO"))
+clt = Client("i2cy.tech", 26842, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
+             logger=Logger('test.log', level="DEBUG", echo=False))
 clt.connect()
 
 print("Version:", clt.get(timeout=5))
@@ -59,7 +59,7 @@ batch_requested = False
 exceeded = False
 
 while True:
-    feed = clt.get(timeout=0.5)
+    feed = clt.get(timeout=1)
     if feed is None:
         if fp < total_size and not batch_requested:
             batch_requested = True
@@ -80,6 +80,9 @@ while True:
 
     pbar.update(len(data))
 
+    if fd == total_size:
+        break
+
     if fp < total_size:
         #print(fd)
         clt.send(b"DOWN," + session + b"," + int(fp).to_bytes(8, "little", signed=False))
@@ -88,10 +91,6 @@ while True:
         if not exceeded:
             print("exceeded")
             exceeded = True
-
-    if len(data) < 240000:
-        len(data)
-        break
 
 pbar.close()
 
