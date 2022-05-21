@@ -19,9 +19,9 @@ clt.send(b"LIST,.")
 lists = clt.get(timeout=5).split(b",", 1)[1].decode()
 lists = json.loads(lists)
 
-total_size = lists["tc.mp4"]["size"]
+total_size = lists["test.pdf"]["size"]
 
-clt.send(b"GETF,tc.mp4")
+clt.send(b"GETF,test.pdf")
 session = clt.get(timeout=5)
 session = session.split(b",", 1)[1]
 fd = 0
@@ -58,7 +58,4 @@ print("total size:   ", total_size)
 print(hashs.decode(), sha256.hexdigest())
 print("sha256 sum check: {}".format(sha256.hexdigest() == hashs.decode()))
 
-with open("test.md", "wb") as f:
-    f.write(file)
-    f.close()
 clt.reset()

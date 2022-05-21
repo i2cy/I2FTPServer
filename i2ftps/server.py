@@ -44,14 +44,14 @@ class FileSession:
         """
         if readonly:
             self.io = open(path, "rb")
+            self.__hash_io = open(path, "rb")
         else:
             self.io = open(path, "rb+")
+            self.__hash_io = self.io
         self.readonly = readonly
         self.__sha256 = hashlib.sha256()
         self.size = os.path.getsize(path)
         self.__flag_sha256_available = False
-        self.__sha256_fp = 0
-        self.__lock_io = False
         self.__last_io_ts = time.time()
         self.closed = False
 
@@ -65,14 +65,9 @@ class FileSession:
         if self.io.tell() == offset:
             return
 
-        while self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
         self.__last_io_ts = time.time()
 
         self.io.seek(offset)
-
-        self.__lock_io = False
 
     def write(self, data):
         """
@@ -81,9 +76,6 @@ class FileSession:
         :param data: bytes
         :return: int, length
         """
-        while self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
         self.__last_io_ts = time.time()
 
         try:
@@ -91,7 +83,6 @@ class FileSession:
         except Exception as err:
             ret = 0
 
-        self.__lock_io = False
         return ret
 
     def read(self, length):
@@ -101,14 +92,10 @@ class FileSession:
         :param length: int, max data length
         :return: bytes, data
         """
-        while self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
         self.__last_io_ts = time.time()
 
         ret = self.io.read(length)
 
-        self.__lock_io = False
         return ret
 
     def calc_sha256(self, step=True, size=8192):
@@ -121,30 +108,22 @@ class FileSession:
         """
         if self.__flag_sha256_available:
             return False
-        while self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
-        last_fd = self.io.tell()
-        self.io.seek(self.__sha256_fp)
 
         if step:
-            data = self.io.read(size)
+            data = self.__hash_io.read(size)
             length = len(data)
             if length < size:
                 self.__flag_sha256_available = True
-            self.__sha256_fp += length
+                self.__hash_io.close()
             self.__sha256.update(data)
         else:
             while True:
-                data = self.io.read(size)
+                data = self.__hash_io.read(size)
                 if not data:
                     break
                 self.__sha256.update(data)
             self.__flag_sha256_available = True
-
-        self.io.seek(last_fd)
-
-        self.__lock_io = False
+            self.__hash_io.close()
 
         return True
 
@@ -354,7 +333,9 @@ class I2ftpServer:
             assert isinstance(session, FileSession)
 
             # 下发数据
+            print(session.io.tell())
             session.seek(fp)
+            print(session.io.tell())
             data = session.read(240000)
             ret = b"\x01," + data
 
