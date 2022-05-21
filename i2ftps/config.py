@@ -58,7 +58,7 @@ class Config(object):
 
 
 def generate_systemd(config_filename, addon=None):
-    if addon is None:
+    if addon is None or addon == 1:
         addon = ""
     text = """[Unit]
 Description=I2FTP Server Service
