@@ -44,16 +44,17 @@ class FileSession:
         """
         if readonly:
             self.io = open(path, "rb")
+            self.__hash_io = open(path, "rb")
         else:
-            self.io = open(path, "rb+")
+            self.io = open(path, "wb+")
+            self.__hash_io = self.io
         self.readonly = readonly
         self.__sha256 = hashlib.sha256()
         self.size = os.path.getsize(path)
+        self.flag_sha256_available_oneshot = False
         self.__flag_sha256_available = False
-        self.fp = 0
-        self.__sha256_fp = 0
-        self.__lock_io = False
         self.__last_io_ts = time.time()
+        self.closed = False
 
     def seek(self, offset):
         """
@@ -62,18 +63,12 @@ class FileSession:
         :param offset: int
         :return: None
         """
-        if self.fp == offset:
+        if self.io.tell() == offset:
             return
 
-        if self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
         self.__last_io_ts = time.time()
 
-        self.fp = offset
         self.io.seek(offset)
-
-        self.__lock_io = False
 
     def write(self, data):
         """
@@ -82,9 +77,6 @@ class FileSession:
         :param data: bytes
         :return: int, length
         """
-        if self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
         self.__last_io_ts = time.time()
 
         try:
@@ -92,9 +84,6 @@ class FileSession:
         except Exception as err:
             ret = 0
 
-        self.fp += ret
-
-        self.__lock_io = False
         return ret
 
     def read(self, length):
@@ -104,19 +93,13 @@ class FileSession:
         :param length: int, max data length
         :return: bytes, data
         """
-        if self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
         self.__last_io_ts = time.time()
 
         ret = self.io.read(length)
 
-        self.fp += len(ret)
-
-        self.__lock_io = False
         return ret
 
-    def calc_sha256(self, step=True, size=8192):
+    def calc_sha256(self, step=True, size=16384):
         """
         calculate file's sha256 sum value by step or instantly
 
@@ -126,29 +109,24 @@ class FileSession:
         """
         if self.__flag_sha256_available:
             return False
-        if self.__lock_io:
-            time.sleep(0.001)
-        self.__lock_io = True
-        self.io.seek(self.__sha256_fp)
 
         if step:
-            data = self.io.read(size)
+            data = self.__hash_io.read(size)
             length = len(data)
             if length < size:
+                self.flag_sha256_available_oneshot = True
                 self.__flag_sha256_available = True
-            self.__sha256_fp += length
+                self.__hash_io.close()
             self.__sha256.update(data)
         else:
             while True:
-                data = self.io.read(size)
+                data = self.__hash_io.read(size)
                 if not data:
                     break
                 self.__sha256.update(data)
+            self.flag_sha256_available_oneshot = True
             self.__flag_sha256_available = True
-
-        self.io.seek(self.fp)
-
-        self.__lock_io = False
+            self.__hash_io.close()
 
         return True
 
@@ -180,6 +158,7 @@ class FileSession:
         :return: None
         """
         self.io.close()
+        self.closed = True
 
 
 class I2ftpServer:
@@ -214,6 +193,7 @@ class I2ftpServer:
         self.__cmd_queue = queue.Queue(maxsize=MAX_CMD_QUEUE)  # 命令池
 
         self.__file_session = {}  # 文件会话池
+        self.__file_session_queue = []  # 文件会话缓冲
 
     def start(self):
         """
@@ -242,6 +222,7 @@ class I2ftpServer:
         assert isinstance(self.__server, Server)
         self.__flag_kill = True
         keep = True
+        t0 = time.time()
         while keep:
             time.sleep(0.02)
             keep = False
@@ -249,6 +230,10 @@ class I2ftpServer:
                 if self.threads_running[ele]:
                     keep = True
                     break
+            if time.time() - t0 > TIMEOUT:
+                self.logger.CRITICAL("{} [Main] threads not stopping, timeout, {}".format(
+                    self.__header, self.threads_running))
+                break
 
         self.__server.kill()
         self.logger.INFO("{} I2FTP server stopped".format(self.__header))
@@ -277,12 +262,12 @@ class I2ftpServer:
             # 检查路径是否符合安全规定
             status, ret = self.__check_path(path)
             if not status:
-                return None, ret
+                return ret
             path = self.root.joinpath(path)
 
             # 检查路径是否存在
             if not path.exists():
-                return None, b"\x00,path requested does not exist"
+                return b"\x00,path requested does not exist"
 
             # 当路径是文件时
             if path.is_file():
@@ -310,18 +295,18 @@ class I2ftpServer:
         elif cmd == b"GETF":  # 创建下载会话指令
             # 检查会话池是否已满
             if len(self.__file_session) >= MAX_UPDOWN_SESSIONS:
-                return None, b"\x00,file session full on server"
+                return b"\x00,file session full on server"
 
             # 检查文件路径是否符合要求
             path = payload.decode("utf-8")
             status, ret = self.__check_path(path)
             if not status:
-                return None, ret
+                return ret
             path = self.root.joinpath(path)
 
             # 检查文件是否存在且是文件
             if not path.exists() or path.is_dir():
-                return None, b"\x00,path does not exist or target is a directory"
+                return b"\x00,path does not exist or target is a directory"
 
             # 建立会话
             session = FileSession(path, readonly=True)
@@ -334,46 +319,46 @@ class I2ftpServer:
                 self.__header, header, session_id.hex()
             ))
 
-            self.__file_session.update({session_id: session})
+            self.__file_session_queue.append((session_id, session))
 
             ret = b"\x01," + session_id
 
         elif cmd == b"DOWN":  # 通过会话下载文件
             # 分割指令
             session_id = payload[:16]
-            fp = int().from_bytes(payload[17:], "little", signed=True)
+            fp = int().from_bytes(payload[17:], "little", signed=False)
 
             # 检查会话是否有效
             if session_id not in self.__file_session:
-                return None, b"\x00,invalid session id quested"
+                return b"\x00,invalid session id quested"
 
             session = self.__file_session[session_id]
             assert isinstance(session, FileSession)
 
             # 下发数据
             session.seek(fp)
-            data = session.read(8192)
+            data = session.read(240000)
             ret = b"\x01," + data
 
         elif cmd == b"PULF":  # 创建上传会话命令
             # 若服务器只读则拒绝
             if self.config.read_only:
-                return None, b"\x00,read-only server"
+                return b"\x00,read-only server"
 
             # 检查会话池是否已满
             if len(self.__file_session) >= MAX_UPDOWN_SESSIONS:
-                return None, b"\x00,file session full on server"
+                return b"\x00,file session full on server"
 
             # 检查文件路径是否符合要求
             path = payload.decode("utf-8")
             status, ret = self.__check_path(path)
             if not status:
-                return None, ret
+                return ret
             path = self.root.joinpath(path)
 
             # 检查路径是否是文件夹
             if path.is_dir():
-                return None, b"\x00,path does not exist or target is a directory"
+                return b"\x00,path does not exist or target is a directory"
 
             # 若路径不存在则创建路径
             path_fixer(path.as_posix())
@@ -385,7 +370,7 @@ class I2ftpServer:
             while session_id in self.__file_session:
                 session_id = random_keygen(16)
 
-            self.__file_session.update({session_id: session})
+            self.__file_session_queue.append((session_id, session))
             self.logger.DEBUG("{} {} upload session created (session ID: {})".format(
                 self.__header, header, session_id.hex()
             ))
@@ -395,35 +380,35 @@ class I2ftpServer:
         elif cmd == b"UPLD":  # 通过会话上传数据
             # 若服务器只读则拒绝
             if self.config.read_only:
-                return None, b"\x00,read-only server"
+                return b"\x00,read-only server"
 
             # 分割指令
             session_id = payload[:16]
-            fp = int().from_bytes(payload[17:25], "little", signed=True)
+            fp = int().from_bytes(payload[17:25], "little", signed=False)
             data = payload[26:]
 
             # 检查会话是否有效
             if session_id not in self.__file_session:
-                return None, b"\x00,invalid session id quested"
+                return b"\x00,invalid session id quested"
 
             session = self.__file_session[session_id]
             assert isinstance(session, FileSession)
 
             # 检查会话是否是上传会话
             if session.readonly:
-                return None, b"\x00,read-only session"
+                return b"\x00,read-only session"
 
             # 储存数据
             session.seek(fp)
             fp += session.write(data)
-            ret = b"\x01," + fp.to_bytes(8, "little", signed=True)
+            ret = b"\x01," + fp.to_bytes(8, "little", signed=False)
 
         elif cmd == b"CLOZ":  # 关闭会话命令
             session_id = payload
 
             # 检查会话是否有效
             if session_id not in self.__file_session:
-                return None, b"\x00,invalid session id quested"
+                return b"\x00,invalid session id quested"
 
             session = self.__file_session[session_id]
             assert isinstance(session, FileSession)
@@ -434,7 +419,7 @@ class I2ftpServer:
 
                 # 检查sha256值是否运算完毕
                 if not status:
-                    return None, b"\x00,session is still calculating file's sha256 sum"
+                    return b"\x00,session is still calculating file's sha256 sum"
 
                 # 关闭会话
                 session.close()
@@ -450,12 +435,10 @@ class I2ftpServer:
                 self.__header, header, session_id.hex()
             ))
 
-            self.__file_session.pop(session_id)
-
         elif cmd == b"FIOP":  # 文件操作命令
             # 若服务器只读则拒绝
             if self.config.read_only:
-                return None, b"\x00,read-only server"
+                return b"\x00,read-only server"
 
             # 分割命令
             command = payload[0]
@@ -467,7 +450,7 @@ class I2ftpServer:
                 path = payload.decode("utf-8")
                 status, ret = self.__check_path(path)
                 if not status:
-                    return None, ret
+                    return ret
 
             # 重命名
             if command == 0:
@@ -476,14 +459,14 @@ class I2ftpServer:
 
                 # 检查路径是否存在
                 if not path0.exists():
-                    return None, b"\x00,path requested does not exist"
+                    return b"\x00,path requested does not exist"
                 if path1.exists():
-                    return None, b"\x00,target name already exists"
+                    return b"\x00,target name already exists"
 
                 try:
                     os.rename(path0, path1)
                 except Exception as err:
-                    return None, b"\x00," + str(err).encode("utf-8")
+                    return b"\x00," + str(err).encode("utf-8")
 
             # 移动
             elif command == 1:
@@ -492,15 +475,15 @@ class I2ftpServer:
 
                 # 检查路径是否存在
                 if not path0.exists():
-                    return None, b"\x00,path requested does not exist"
+                    return b"\x00,path requested does not exist"
                 if path1.exists():
-                    return None, b"\x00,target path already exists"
+                    return b"\x00,target path already exists"
 
                 # 移动文件
                 try:
                     shutil.move(path0, path1)
                 except Exception as err:
-                    return None, b"\x00," + str(err).encode("utf-8")
+                    return b"\x00," + str(err).encode("utf-8")
 
             # 复制
             elif command == 2:
@@ -509,9 +492,9 @@ class I2ftpServer:
 
                 # 检查路径是否存在
                 if not path0.exists():
-                    return None, b"\x00,path requested does not exist"
+                    return b"\x00,path requested does not exist"
                 if path1.exists():
-                    return None, b"\x00,target path already exists"
+                    return b"\x00,target path already exists"
 
                 # 复制文件、文件夹
                 try:
@@ -520,7 +503,7 @@ class I2ftpServer:
                     else:
                         shutil.copytree(path0, path1)
                 except Exception as err:
-                    return None, b"\x00," + str(err).encode("utf-8")
+                    return b"\x00," + str(err).encode("utf-8")
 
             # 删除
             elif command == 3:
@@ -528,7 +511,7 @@ class I2ftpServer:
 
                 # 检查路径是否存在
                 if not path0.exists():
-                    return None, b"\x00,path requested does not exist"
+                    return b"\x00,path requested does not exist"
 
                 # 删除文件、文件夹
                 try:
@@ -537,7 +520,7 @@ class I2ftpServer:
                     else:
                         shutil.rmtree(path0)
                 except Exception as err:
-                    return None, b"\x00," + str(err).encode("utf-8")
+                    return b"\x00," + str(err).encode("utf-8")
 
             # 创建文件夹
             elif command == 4:
@@ -545,17 +528,17 @@ class I2ftpServer:
 
                 # 检查路径是否存在
                 if path0.exists():
-                    return None, b"\x00,target path already exists"
+                    return b"\x00,target path already exists"
 
                 # 创建文件夹
                 try:
                     os.makedirs(path0)
                 except Exception as err:
-                    return None, b"\x00," + str(err).encode("utf-8")
+                    return b"\x00," + str(err).encode("utf-8")
 
             ret = b"\x01"
 
-        return None, ret
+        return ret
 
     def __file_session_manage_loop(self):
         if self.threads_running["file_session_manage_loop"]:
@@ -563,8 +546,14 @@ class I2ftpServer:
         self.threads_running["file_session_manage_loop"] = True
 
         full_speed_ts = time.time()
+        header = "[SessionManage]"
+        idle = False
 
         while not self.__flag_kill:
+            pops = []
+            for session_id, session in self.__file_session_queue[:]:
+                self.__file_session.update({session_id: session})
+                self.__file_session_queue.pop(0)
             for ele in self.__file_session.keys():
                 session = self.__file_session[ele]
                 assert isinstance(session, FileSession)
@@ -575,17 +564,37 @@ class I2ftpServer:
                 # 自动关闭不活动的会话
                 if session.age() > FILE_SESSION_TIMEOUT:
                     session.close()
-                    self.__file_session.pop(ele)
-                    self.logger.WARNING("[]")
+                    pops.append(ele)
+                    self.logger.WARNING("{} {} inactive file session found: \"{}\", closing".format(
+                        self.__header, header, ele.hex()
+                    ))
                     continue
+
+                # 关闭死亡的会话
+                if session.closed:
+                    pops.append(ele)
 
                 # 计算会话文件的sha256校验和
                 ret = session.calc_sha256(step=True)
                 if ret:
                     full_speed_ts = time.time()
+                else:
+                    if session.flag_sha256_available_oneshot:
+                        self.logger.DEBUG("{} {} sha256 value of session \"{}\" calculated".format(
+                            self.__header, header, ele.hex()
+                        ))
+                        session.flag_sha256_available_oneshot = False
 
-                if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
-                    time.sleep(0.01)
+            if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
+                time.sleep(0.01)
+                if not idle:
+                    idle = True
+                    self.logger.DEBUG("{} {} thread idle".format(self.__header, header))
+            else:
+                idle = False
+
+            for ele in pops:
+                self.__file_session.pop(ele)
 
         self.threads_running["file_session_manage_loop"] = False
 
@@ -598,6 +607,7 @@ class I2ftpServer:
         full_speed_ts = time.time()
         cnt = 0
         header = "[MainLoop]"
+        idle = False
 
         while not self.__flag_kill:
             cnt += 1
@@ -606,6 +616,11 @@ class I2ftpServer:
 
             if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
                 time.sleep(0.01)
+                if not idle:
+                    idle = True
+                    self.logger.DEBUG("{} {} thread idle".format(self.__header, header))
+            else:
+                idle = False
 
             # 接入连接
             if not cnt % 5:
@@ -630,7 +645,9 @@ class I2ftpServer:
                     package = ele.get()
                     if package is not None:
                         self.__cmd_queue.put((ele, package))
-
+                        self.logger.DEBUG("{} {} \"{}\" request received, buffer size now {}".format(
+                            self.__header, header, package[:4], self.__cmd_queue.qsize()
+                    ))
             # 执行命令
             try:
                 con, cmd = self.__cmd_queue.get(block=False)
@@ -647,6 +664,7 @@ class I2ftpServer:
                 self.logger.ERROR("{} {} [{}:{}] failed to process requests of \"{}\", {}".format(
                     self.__header, header, con.addr[0], con.addr[1], cmd, err
                 ))
+                raise err
 
         self.threads_running["loop"] = False
 
