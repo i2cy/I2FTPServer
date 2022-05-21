@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="i2ftps",  # Replace with your own username
-    version="0.0.1",
+    version="0.0.2",
     author="I2cy Cloud",
     author_email="i2cy@outlook.com",
     description="A FTP server based on I2TCP",
@@ -28,10 +28,10 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'i2cylib==1.8.7'
+        'i2cylib=>=1.8.9'
     ],
     packages=setuptools.find_packages(),
-    python_requires=">=3.7",
+    python_requires=">=3.6",
     entry_points={'console_scripts':
         [
             "i2ftps-setup = i2ftps.config:main",

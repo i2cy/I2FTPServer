@@ -46,11 +46,12 @@ class FileSession:
             self.io = open(path, "rb")
             self.__hash_io = open(path, "rb")
         else:
-            self.io = open(path, "rb+")
+            self.io = open(path, "wb+")
             self.__hash_io = self.io
         self.readonly = readonly
         self.__sha256 = hashlib.sha256()
         self.size = os.path.getsize(path)
+        self.flag_sha256_available_oneshot = False
         self.__flag_sha256_available = False
         self.__last_io_ts = time.time()
         self.closed = False
@@ -98,7 +99,7 @@ class FileSession:
 
         return ret
 
-    def calc_sha256(self, step=True, size=8192):
+    def calc_sha256(self, step=True, size=16384):
         """
         calculate file's sha256 sum value by step or instantly
 
@@ -113,6 +114,7 @@ class FileSession:
             data = self.__hash_io.read(size)
             length = len(data)
             if length < size:
+                self.flag_sha256_available_oneshot = True
                 self.__flag_sha256_available = True
                 self.__hash_io.close()
             self.__sha256.update(data)
@@ -122,6 +124,7 @@ class FileSession:
                 if not data:
                     break
                 self.__sha256.update(data)
+            self.flag_sha256_available_oneshot = True
             self.__flag_sha256_available = True
             self.__hash_io.close()
 
@@ -323,7 +326,7 @@ class I2ftpServer:
         elif cmd == b"DOWN":  # 通过会话下载文件
             # 分割指令
             session_id = payload[:16]
-            fp = int().from_bytes(payload[17:], "little", signed=True)
+            fp = int().from_bytes(payload[17:], "little", signed=False)
 
             # 检查会话是否有效
             if session_id not in self.__file_session:
@@ -333,9 +336,7 @@ class I2ftpServer:
             assert isinstance(session, FileSession)
 
             # 下发数据
-            print(session.io.tell())
             session.seek(fp)
-            print(session.io.tell())
             data = session.read(240000)
             ret = b"\x01," + data
 
@@ -383,7 +384,7 @@ class I2ftpServer:
 
             # 分割指令
             session_id = payload[:16]
-            fp = int().from_bytes(payload[17:25], "little", signed=True)
+            fp = int().from_bytes(payload[17:25], "little", signed=False)
             data = payload[26:]
 
             # 检查会话是否有效
@@ -400,7 +401,7 @@ class I2ftpServer:
             # 储存数据
             session.seek(fp)
             fp += session.write(data)
-            ret = b"\x01," + fp.to_bytes(8, "little", signed=True)
+            ret = b"\x01," + fp.to_bytes(8, "little", signed=False)
 
         elif cmd == b"CLOZ":  # 关闭会话命令
             session_id = payload
@@ -546,6 +547,7 @@ class I2ftpServer:
 
         full_speed_ts = time.time()
         header = "[SessionManage]"
+        idle = False
 
         while not self.__flag_kill:
             pops = []
@@ -576,9 +578,20 @@ class I2ftpServer:
                 ret = session.calc_sha256(step=True)
                 if ret:
                     full_speed_ts = time.time()
+                else:
+                    if session.flag_sha256_available_oneshot:
+                        self.logger.DEBUG("{} {} sha256 value of session \"{}\" calculated".format(
+                            self.__header, header, ele.hex()
+                        ))
+                        session.flag_sha256_available_oneshot = False
 
-                if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
-                    time.sleep(0.01)
+            if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
+                time.sleep(0.01)
+                if not idle:
+                    idle = True
+                    self.logger.DEBUG("{} {} thread idle".format(self.__header, header))
+            else:
+                idle = False
 
             for ele in pops:
                 self.__file_session.pop(ele)
@@ -594,6 +607,7 @@ class I2ftpServer:
         full_speed_ts = time.time()
         cnt = 0
         header = "[MainLoop]"
+        idle = False
 
         while not self.__flag_kill:
             cnt += 1
@@ -602,6 +616,11 @@ class I2ftpServer:
 
             if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
                 time.sleep(0.01)
+                if not idle:
+                    idle = True
+                    self.logger.DEBUG("{} {} thread idle".format(self.__header, header))
+            else:
+                idle = False
 
             # 接入连接
             if not cnt % 5:
