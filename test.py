@@ -65,7 +65,7 @@ while True:
             batch_requested = True
             for i in range(20):
                 clt.send(b"DOWN," + session + b"," + int(fp).to_bytes(8, "little", signed=False))
-                fp += 240000
+                fp += 130912
                 if fp >= total_size:
                     break
         time.sleep(0.001)

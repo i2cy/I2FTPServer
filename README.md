@@ -16,8 +16,8 @@
 `pip install i2ftp-server`
 
 # 环境需求
- - `Python3.7+`
- - `i2cylib >= 1.8.6`
+ - `Python3.6+`
+ - `i2cylib >= 1.8.10`
 
 # 集成命令
  - `i2ftps-setup` 服务器配置向导
@@ -51,10 +51,9 @@
    返回：`<bool 请求是否接受>,[16 bytes 下载会话ID]`
 
 
- - 客户端命令 - “通过会话ID下载”：`DOWN,<16 bytes 下载会话ID>,<int64 文件指针偏移量>`
+ - 客户端命令 - “通过会话ID下载”：`DOWN,<16 bytes 下载会话ID>,<int64 文件指针偏移量>,<int64 截止文件指针偏移量>`
 
-   返回：`<bool 操作是否有效>,[bytes 数据内容 最大长度240000 Bytes]`
-
+   返回：`<bool 操作是否有效>,[bytes 数据内容 最大长度130912 Bytes]`
 
  - 客户端命令 - “请求上传”：`PULF,<PATH>,<str_hex 文件哈希校验值>`
 
