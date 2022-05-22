@@ -16,7 +16,7 @@ import tqdm
 
 TEST_FILENAME = "small.mp4"
 
-clt = Client("i2cy.tech", 26842, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
+clt = Client("localhost", 26842, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
              logger=Logger('test.log', level="DEBUG", echo=False))
 clt.connect()
 
@@ -38,15 +38,7 @@ file = b""
 splits = []
 fp = 0
 
-#while True:
-#    splits.append(fp)
-#    if total_size - fp < 240000:
-#        break
-#    else:
-#        fp += 240000
-#
-#for ele in splits:
-#    clt.send(b"DOWN," + session + b"," + int(ele).to_bytes(8, "little"))
+
 
 pbar = tqdm.tqdm(total=total_size, unit_scale=True, unit="B")
 
@@ -55,27 +47,31 @@ sha256 = hashlib.sha256()
 f = open("D:/" + TEST_FILENAME, "wb+")
 f.close()
 
-batch_requested = False
-exceeded = False
+clt.send(b"DOWN," + session + b"," + int(fp).to_bytes(8, "little", signed=False) + b"," +
+         int(fp).to_bytes(8, "little", signed=False))
+
+missed = []
 
 while True:
-    feed = clt.get(timeout=1)
+    feed = clt.get(timeout=5)
     if feed is None:
-        if fp < total_size and not batch_requested:
-            batch_requested = True
-            for i in range(20):
-                clt.send(b"DOWN," + session + b"," + int(fp).to_bytes(8, "little", signed=False))
-                fp += 130912
-                if fp >= total_size:
-                    break
-        time.sleep(0.001)
-        continue
+        break
 
-    batch_requested = False
     ret, data = feed.split(b",", 1)
+    fp_ret = int.from_bytes(data[:8], "little", signed=False)
+    data = data[9:]
 
     f = open("D:/" + TEST_FILENAME, "ab")
+    if fp_ret != fp:  # 当传输的包偏移量不符合顺序时（可能丢包）
+        print("inorder package, fp_ret: {} fp: {}".format(fp_ret, fp))
+        if fp_ret > fp:
+            f.write(bytes(fp_ret - fp))
+            missed.append((fp, fp_ret))
+        else:
+            f.seek(fp_ret)
+
     fd += f.write(data)
+    fp += len(data)
     f.close()
 
     pbar.update(len(data))
@@ -83,14 +79,36 @@ while True:
     if fd == total_size:
         break
 
-    if fp < total_size:
-        #print(fd)
-        clt.send(b"DOWN," + session + b"," + int(fp).to_bytes(8, "little", signed=False))
-        fp += 240000
-    else:
-        if not exceeded:
-            print("exceeded")
-            exceeded = True
+for fp_s, fp_end in missed:
+    clt.send(b"DOWN," + session + b"," + int(fp_s).to_bytes(8, "little", signed=False) + b"," +
+             int(fp_end).to_bytes(8, "little", signed=False))
+    total_size = fp_end - fp_s
+    fp = fp_s
+    while True:
+        feed = clt.get(timeout=5)
+        if feed is None:
+            break
+
+        ret, data = feed.split(b",", 1)
+        fp_ret = int.from_bytes(data[:8], "little", signed=False)
+
+        f = open("D:/" + TEST_FILENAME, "ab")
+        f.seek(fp)
+        if fp_ret != fp:  # 当传输的包偏移量不符合顺序时（可能丢包）
+            if fp_ret > fp:
+                f.write(bytes(fp_ret - fp))
+                missed.append((fp, fp_ret))
+            else:
+                f.seek(fp_ret)
+
+        fd += f.write(data)
+        fp += len(data)
+        f.close()
+
+        pbar.update(len(data))
+
+        if fd == total_size:
+            break
 
 pbar.close()
 
