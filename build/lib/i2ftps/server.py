@@ -26,13 +26,16 @@ TIMEOUT = 20
 MAX_CONNECTIONS = 100
 MAX_UPDOWN_SESSIONS = 500
 MAX_CMD_QUEUE = 1000
+MAX_PACKAGE_BUFFER = 100
 FILE_SESSION_TIMEOUT = 120
-FULL_SPEED_TIMEOUT = 20
+FULL_SPEED_TIMEOUT = 0.5
 
+SIGNAL_PACKAGE_SIZE = 524128
 
 VERSION = "1.0"
 
 DEBUG = True
+
 
 class FileSession:
 
@@ -207,7 +210,8 @@ class I2ftpServer:
                                logger=self.logger,
                                max_con=MAX_CONNECTIONS,
                                timeout=TIMEOUT,
-                               secured_connection=self.config.tls_enabled
+                               secured_connection=self.config.tls_enabled,
+                               max_buffer_size=MAX_PACKAGE_BUFFER
                                )
         self.__server.start()
         threading.Thread(target=self.__loop).start()
@@ -338,21 +342,20 @@ class I2ftpServer:
             session = self.__file_session[session_id]
             assert isinstance(session, FileSession)
 
+            session.seek(fp)
+
             if fp_end <= fp:
                 fp_end = session.size
             length = fp_end - fp
-            total_length = length
-            if length > 130912:
-                length = 130912
-
-            # 下发数据
-            session.seek(fp)
-            data = session.read(length)
-            ret = b"\x01," + payload[17:25] + b"," + data
-            if total_length > 130912 and fp + 130912 < session.size:
+            if length > SIGNAL_PACKAGE_SIZE:  # 当请求的长度大于单个包能承载的长度时
+                data = session.read(SIGNAL_PACKAGE_SIZE)
                 ret_cmd = b"DOWN," + session_id + b","
-                ret_cmd += int(fp + 130912).to_bytes(8, "little", signed=False) + b","
-                ret_cmd += int(fp_end).to_bytes(8, "little", signed=False)
+                ret_cmd += int(fp + SIGNAL_PACKAGE_SIZE).to_bytes(8, "little", signed=False) + b","
+                ret_cmd += payload[26:34]
+            else:
+                data = session.read(length)
+
+            ret = b"\x01," + payload[17:25] + b"," + data
 
         elif cmd == b"PULF":  # 创建上传会话命令
             # 若服务器只读则拒绝
@@ -461,7 +464,6 @@ class I2ftpServer:
 
             # 检查文件路径是否符合要求
             for path in paths:
-                path = payload.decode("utf-8")
                 status, ret = self.__check_path(path)
                 if not status:
                     return ret, ret_cmd
@@ -674,7 +676,7 @@ class I2ftpServer:
                 assert isinstance(con, Handler)
                 ret, ret_cmd = self.__process_requests(cmd)
                 con.send(ret)
-                if ret_cmd and con.live:
+                if ret_cmd:
                     self.__cmd_queue.put((con, ret_cmd))
             except Exception as err:
                 self.logger.ERROR("{} {} [{}:{}] failed to process requests of \"{}\", {}".format(

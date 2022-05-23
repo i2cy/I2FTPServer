@@ -240,7 +240,7 @@ def main():
 
         while choice is None:
             choice = input("step 9/{}: Add to systemd for autostart? (Y/N)\n"
-                           "(input nothing for default: True): ")
+                           "(input nothing for default: True): ".format(steps))
 
             if choice:
                 if choice in ("y", "Y", "Yes", "yes"):
