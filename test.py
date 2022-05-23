@@ -15,7 +15,7 @@ import tqdm
 
 TEST_FILENAME = "tc.mp4"
 
-clt = Client("localhost", 26842, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
+clt = Client("i2cy.tech", 26842, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
              logger=Logger('test.log', level="INFO", echo=False), max_buffer_size=1000)
 clt.connect()
 
