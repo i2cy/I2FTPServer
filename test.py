@@ -13,11 +13,10 @@ import hashlib
 import json
 import tqdm
 
-
-TEST_FILENAME = "small.mp4"
+TEST_FILENAME = "tc.mp4"
 
 clt = Client("localhost", 26842, b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
-             logger=Logger('test.log', level="DEBUG", echo=False))
+             logger=Logger('test.log', level="INFO", echo=False), max_buffer_size=1000)
 clt.connect()
 
 print("Version:", clt.get(timeout=5))
@@ -38,8 +37,6 @@ file = b""
 splits = []
 fp = 0
 
-
-
 pbar = tqdm.tqdm(total=total_size, unit_scale=True, unit="B")
 
 sha256 = hashlib.sha256()
@@ -59,11 +56,13 @@ while True:
 
     ret, data = feed.split(b",", 1)
     fp_ret = int.from_bytes(data[:8], "little", signed=False)
+    #print("fp_ret got:", fp_ret, "fp now:", fp)
     data = data[9:]
 
     f = open("D:/" + TEST_FILENAME, "ab")
-    if fp_ret != fp:  # 当传输的包偏移量不符合顺序时（可能丢包）
-        print("inorder package, fp_ret: {} fp: {}".format(fp_ret, fp))
+    if fp_ret != fp:  # 当传输的包偏移量不符合顺序时（可能发生了丢包）
+        #print(feed[0:14])
+        #print("inorder package, fp_ret: {} fp: {}".format(fp_ret, fp))
         if fp_ret > fp:
             f.write(bytes(fp_ret - fp))
             missed.append((fp, fp_ret))
@@ -98,6 +97,7 @@ for fp_s, fp_end in missed:
             if fp_ret > fp:
                 f.write(bytes(fp_ret - fp))
                 missed.append((fp, fp_ret))
+                print("missed", (fp, fp_ret))
             else:
                 f.seek(fp_ret)
 
@@ -112,6 +112,7 @@ for fp_s, fp_end in missed:
 
 pbar.close()
 
+print("Verifying file's sha256 sum")
 f = open("D:/" + TEST_FILENAME, "rb")
 while True:
     data = f.read(8192)
@@ -119,6 +120,7 @@ while True:
         break
     sha256.update(data)
 ret = False
+
 while not ret:
     clt.send(b"CLOZ,"+session)
     ret, hashs = clt.get(timeout=5).split(b",", 1)
