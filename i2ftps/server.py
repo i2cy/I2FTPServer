@@ -53,10 +53,10 @@ class FileSession:
             self.io = open(path, "wb+")
             self.__hash_io = self.io
         self.readonly = readonly
-        self.__sha256 = hashlib.sha256()
+        self.__md5 = hashlib.md5()
         self.size = os.path.getsize(path)
-        self.flag_sha256_available_oneshot = False
-        self.__flag_sha256_available = False
+        self.flag_md5_available_oneshot = False
+        self.__flag_md5_available = False
         self.__last_io_ts = time.time()
         self.closed = False
 
@@ -103,33 +103,33 @@ class FileSession:
 
         return ret
 
-    def calc_sha256(self, step=True, size=16384):
+    def calc_hash(self, step=True, size=16384):
         """
-        calculate file's sha256 sum value by step or instantly
+        calculate file's md5 sum value by step or instantly
 
         :param step: bool, calculate one step
         :param size: int, read size for one step
         :return: bool, calculation status (False for already done the calculation)
         """
-        if self.__flag_sha256_available:
+        if self.__flag_md5_available:
             return False
 
         if step:
             data = self.__hash_io.read(size)
             length = len(data)
             if length < size:
-                self.flag_sha256_available_oneshot = True
-                self.__flag_sha256_available = True
+                self.flag_md5_available_oneshot = True
+                self.__flag_md5_available = True
                 self.__hash_io.close()
-            self.__sha256.update(data)
+            self.__md5.update(data)
         else:
             while True:
                 data = self.__hash_io.read(size)
                 if not data:
                     break
-                self.__sha256.update(data)
-            self.flag_sha256_available_oneshot = True
-            self.__flag_sha256_available = True
+                self.__md5.update(data)
+            self.flag_md5_available_oneshot = True
+            self.__flag_md5_available = True
             self.__hash_io.close()
 
         return True
@@ -142,16 +142,16 @@ class FileSession:
         """
         return time.time() - self.__last_io_ts
 
-    def sha256(self):
+    def md5(self):
         """
-        return file's sha256 sum, if calculation is still in progress,
+        return file's md5 sum, if calculation is still in progress,
         status will be False
 
         :return: (bool status, hex_str sum)
         """
         self.__last_io_ts = time.time()
-        if self.__flag_sha256_available:
-            return True, self.__sha256.hexdigest()
+        if self.__flag_md5_available:
+            return True, self.__md5.hexdigest()
         else:
             return False, None
 
@@ -432,15 +432,15 @@ class I2ftpServer:
 
             # 若会话为下载会话
             if session.readonly:
-                status, sha256 = session.sha256()
+                status, md5 = session.md5()
 
-                # 检查sha256值是否运算完毕
+                # 检查md5值是否运算完毕
                 if not status:
-                    return b"\x00,session is still calculating file's sha256 sum", ret_cmd
+                    return b"\x00,session is still calculating file's md5 sum", ret_cmd
 
                 # 关闭会话
                 session.close()
-                ret = b"\x01," + sha256.encode("utf-8")
+                ret = b"\x01," + md5.encode("utf-8")
 
             # 若为上传会话
             else:
@@ -590,16 +590,16 @@ class I2ftpServer:
                 if session.closed:
                     pops.append(ele)
 
-                # 计算会话文件的sha256校验和
-                ret = session.calc_sha256(step=True)
+                # 计算会话文件的md5校验和
+                ret = session.calc_hash(step=True)
                 if ret:
                     full_speed_ts = time.time()
                 else:
-                    if session.flag_sha256_available_oneshot:
-                        self.logger.DEBUG("{} {} sha256 value of session \"{}\" calculated".format(
+                    if session.flag_md5_available_oneshot:
+                        self.logger.DEBUG("{} {} md5 value of session \"{}\" calculated".format(
                             self.__header, header, ele.hex()
                         ))
-                        session.flag_sha256_available_oneshot = False
+                        session.flag_md5_available_oneshot = False
 
             if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
                 time.sleep(0.01)

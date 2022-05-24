@@ -24,17 +24,24 @@ class I2ftpClient:
             logger = Logger()
         self.logger = logger
         self.timeout = timeout
-        self.__clt = Client(hostname, port, key, logger=logger, max_buffer_size=max_buffer_size)
+        self.i2clt = Client(hostname, port, key, logger=logger, max_buffer_size=max_buffer_size)
 
         self.__header = "[I2FTP]"
         self.__flag_download_busy = False
 
-    def __send_command(self, cmd):
-        self.__clt.send(cmd)
-        feed = self.__clt.get(timeout=self.timeout)
+    def send_command(self, cmd, feedback=True):
+        self.i2clt.send(cmd)
+
+        if feedback:
+            status, ret = self.get_feedback()
+
+            return status, ret
+
+    def get_feedback(self):
+        feed = self.i2clt.get(timeout=self.timeout)
 
         status = False
-        ret = ""
+        ret = "timeout when receiving feedback"
 
         if feed is not None:
             status, ret = feed.split(b",", 1)
@@ -50,23 +57,23 @@ class I2ftpClient:
             timeout = self.timeout
         else:
             self.timeout = timeout
-        ret = self.__clt.connect(timeout=timeout)
-        version = self.__clt.get(timeout=timeout)
+        ret = self.i2clt.connect(timeout=timeout)
+        version = self.i2clt.get(timeout=timeout)
         if version != self.version:
             self.logger.ERROR("{} failed to match server version, server: {} client: {}".format(
                 self.__header, version, self.version
             ))
-            self.__clt.reset()
+            self.i2clt.reset()
             ret = False
         return ret
 
     def disconnect(self):
-        return self.__clt.reset()
+        return self.i2clt.reset()
 
     def list(self, path):
         cmd = "LIST,{}".format(path).encode("utf-8")
 
-        status, ret = self.__send_command(cmd)
+        status, ret = self.send_command(cmd)
 
         if status:
             ret = ret.decode("utf-8")
@@ -92,7 +99,31 @@ class DownloadSession:
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            item.start
+            cmd = b"DOWN," + self.session_id + b","
+
+            start = item.start
+            if start < 0:
+                start = self.length - start
+            stop = item.stop
+            if stop < 0:
+                stop = self.length - stop
+
+            cmd += int(start).to_bytes(8, "little", signed=False) + b","
+            cmd += int(stop).to_bytes(8, "little", signed=False)
+            length = stop - start
+            dat = b""
+            self.__upper.send_command(cmd, feedback=False)
+
+            while len(dat) < length:
+                status, ret = self.__upper.get_feedback()
+                if not status:
+                    raise Exception(ret)
+                dat += ret
+            ret = dat[::item.step]
+
+        else:
+
+
 
     def to_file(self, filename):
 
