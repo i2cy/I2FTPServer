@@ -27,7 +27,7 @@ class I2ftpClient:
         self.i2clt = Client(hostname, port, key, logger=logger, max_buffer_size=max_buffer_size)
 
         self.__header = "[I2FTP]"
-        self.__flag_download_busy = False
+        self.flag_download_busy = False
 
     def send_command(self, cmd, feedback=True):
         self.i2clt.send(cmd)
@@ -98,6 +98,9 @@ class DownloadSession:
         return self.length
 
     def __getitem__(self, item):
+        if self.__upper.flag_download_busy:
+            raise Exception("client download busy, only one downloading quest a time")
+
         if isinstance(item, slice):
             cmd = b"DOWN," + self.session_id + b","
 
@@ -112,18 +115,27 @@ class DownloadSession:
             cmd += int(stop).to_bytes(8, "little", signed=False)
             length = stop - start
             dat = b""
+            self.__upper.flag_download_busy = True
             self.__upper.send_command(cmd, feedback=False)
 
             while len(dat) < length:
-                status, ret = self.__upper.get_feedback()
+                status, fed = self.__upper.get_feedback()
                 if not status:
-                    raise Exception(ret)
-                dat += ret
+                    raise Exception(fed)
+                dat += fed
             ret = dat[::item.step]
 
         else:
+            cmd = b"DOWN," + self.session_id + b","
+            if item < 0:
+                item = self.length - item
+            cmd += int(item).to_bytes(8, "little", signed=False) + b","
+            cmd += int(item + 1).to_bytes(8, "little", signed=False)
+            status, ret = self.__upper.send_command(cmd)
+            if not status:
+                raise Exception(ret)
 
-
+        return ret
 
     def to_file(self, filename):
 
