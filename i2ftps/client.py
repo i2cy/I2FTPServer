@@ -78,12 +78,24 @@ class I2ftpClient:
         cmd = "DOWN"
 
 
-class SessionRequests:
+class DownloadSession:
 
-    def __init__(self, session_id, readonly, file_details=None):
+    def __init__(self, upper, session_id, file_details):
+        assert isinstance(upper, I2ftpClient)
         self.session_id = session_id
-        self.read_only = readonly
+        self.__upper = upper
         self.details = file_details
+        self.length = file_details["size"]
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            item.start
+
+    def to_file(self, filename):
+
 
 
 if __name__ == '__main__':
