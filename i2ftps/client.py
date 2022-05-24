@@ -19,6 +19,7 @@ class I2ftpClient:
 
     def __init__(self, hostname, key=b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
                  port=26842, logger=None, max_buffer_size=1000, timeout=15):
+        self.version = b"I2FTP " + VERSION.encode("utf-8")
         if logger is None:
             logger = Logger()
         self.logger = logger
@@ -26,7 +27,7 @@ class I2ftpClient:
         self.__clt = Client(hostname, port, key, logger=logger, max_buffer_size=max_buffer_size)
 
         self.__header = "[I2FTP]"
-        self.version = b"I2FTP " + VERSION.encode("utf-8")
+        self.__flag_download_busy = False
 
     def __send_command(self, cmd):
         self.__clt.send(cmd)
@@ -72,6 +73,17 @@ class I2ftpClient:
             ret = json.loads(ret)
 
         return status, ret
+
+    def download(self, request, verbose=True):
+        cmd = "DOWN"
+
+
+class SessionRequests:
+
+    def __init__(self, session_id, readonly, file_details=None):
+        self.session_id = session_id
+        self.read_only = readonly
+        self.details = file_details
 
 
 if __name__ == '__main__':
