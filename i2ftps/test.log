@@ -1,0 +1,11 @@
+[2022-05-24 15:40:02] [DBUG] [I2TCP] [heartbeat] thread started
+[2022-05-24 15:40:02] [INFO] [I2TCP] server i2cy.tech:26842 connected
+[2022-05-24 15:40:02] [DBUG] [I2TCP] [watchdog] thread started
+[2022-05-24 15:40:02] [DBUG] [I2TCP] [receiver] thread started
+[2022-05-24 15:40:02] [DBUG] [I2TCP] receiving data of total length 20
+[2022-05-24 15:40:02] [DBUG] [I2TCP] connection built
+[2022-05-24 15:40:02] [DBUG] [I2TCP] receiving data of total length 9
+[2022-05-24 15:40:02] [DBUG] [I2TCP] receiving data of total length 354
+[2022-05-24 15:40:02] [DBUG] [I2TCP] [receiver] thread stopped
+[2022-05-24 15:40:02] [DBUG] [I2TCP] [heartbeat] thread stopped
+[2022-05-24 15:40:02] [DBUG] [I2TCP] [watchdog] thread stopped
