@@ -1,6 +1,7 @@
 README.md
 setup.py
 i2ftps/__init__.py
+i2ftps/client.py
 i2ftps/config.py
 i2ftps/process_manage.py
 i2ftps/server.py

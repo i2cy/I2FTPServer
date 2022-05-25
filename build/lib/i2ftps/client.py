@@ -207,7 +207,7 @@ class DownloadSession(I2ftpClient):
             raise Exception("client download busy, only one downloading quest a time")
         if self.closed:
             raise Exception("session closed")
-        self.hash_object = hashlib.md5()
+        self.hash_object = hashlib.sha256()
         f = open(filename, "wb")
 
         received = 0
@@ -251,10 +251,10 @@ class DownloadSession(I2ftpClient):
 
 
 if __name__ == '__main__':
-    test_server = "localhost"
+    test_server = "i2cy.tech"
     test_port = 26842
     test_key = b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>"
-    test_file = "tc.mp4"
+    test_file = "small.mp4"
     test_log = "test.log"
 
     clt = I2ftpClient(test_server, test_key, test_port, logger=Logger(test_log, echo=False))
