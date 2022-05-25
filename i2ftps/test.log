@@ -1,11 +1,97 @@
-[2022-05-24 15:40:02] [DBUG] [I2TCP] [heartbeat] thread started
-[2022-05-24 15:40:02] [INFO] [I2TCP] server i2cy.tech:26842 connected
-[2022-05-24 15:40:02] [DBUG] [I2TCP] [watchdog] thread started
-[2022-05-24 15:40:02] [DBUG] [I2TCP] [receiver] thread started
-[2022-05-24 15:40:02] [DBUG] [I2TCP] receiving data of total length 20
-[2022-05-24 15:40:02] [DBUG] [I2TCP] connection built
-[2022-05-24 15:40:02] [DBUG] [I2TCP] receiving data of total length 9
-[2022-05-24 15:40:02] [DBUG] [I2TCP] receiving data of total length 354
-[2022-05-24 15:40:02] [DBUG] [I2TCP] [receiver] thread stopped
-[2022-05-24 15:40:02] [DBUG] [I2TCP] [heartbeat] thread stopped
-[2022-05-24 15:40:02] [DBUG] [I2TCP] [watchdog] thread stopped
+[2022-05-25 16:56:48] [DBUG] [I2TCP] [heartbeat] thread started
+[2022-05-25 16:56:48] [DBUG] [I2TCP] [watchdog] thread started
+[2022-05-25 16:56:48] [INFO] [I2TCP] server i2cy.tech:26842 connected
+[2022-05-25 16:56:48] [DBUG] [I2TCP] [receiver] thread started
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 20
+[2022-05-25 16:56:48] [DBUG] [I2TCP] connection built
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 9
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 217
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 18
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 74
+[2022-05-25 16:56:48] [DBUG] [I2TCP] [heartbeat] thread started
+[2022-05-25 16:56:48] [INFO] [I2TCP] server i2cy.tech:26842 connected
+[2022-05-25 16:56:48] [DBUG] [I2TCP] [watchdog] thread started
+[2022-05-25 16:56:48] [DBUG] [I2TCP] [receiver] thread started
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 20
+[2022-05-25 16:56:48] [DBUG] [I2TCP] connection built
+[2022-05-25 16:56:48] [DBUG] [I2TCP] receiving data of total length 9
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:49] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:50] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:51] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:52] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:53] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:54] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:55] [DBUG] [I2TCP] receiving data of total length 524139
+[2022-05-25 16:56:56] [DBUG] [I2TCP] receiving data of total length 156827
+[2022-05-25 16:56:56] [DBUG] [I2TCP] receiving data of total length 66
+[2022-05-25 16:56:56] [DBUG] [I2TCP] [receiver] thread stopped
+[2022-05-25 16:56:56] [DBUG] [I2TCP] [receiver] thread stopped
+[2022-05-25 16:56:56] [DBUG] [I2TCP] [heartbeat] thread stopped
+[2022-05-25 16:56:56] [DBUG] [I2TCP] [watchdog] thread stopped
+[2022-05-25 16:56:56] [DBUG] [I2TCP] [heartbeat] thread stopped
+[2022-05-25 16:56:56] [DBUG] [I2TCP] [watchdog] thread stopped
