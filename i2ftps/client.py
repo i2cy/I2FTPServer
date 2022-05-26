@@ -13,7 +13,7 @@ import hashlib
 import pathlib
 from i2cylib.network import Client
 from i2cylib.utils import Logger
-from i2ftps.server import VERSION
+from i2ftps.server import VERSION, SIGNAL_PACKAGE_SIZE
 
 
 class I2ftpClient:
@@ -120,14 +120,19 @@ class UploadSession(I2ftpClient):
         super(UploadSession, self).__init__(hostname, key, port, logger, max_buffer_size, timeout)
         self.session_id = session_id
         self.closed = False
-        self.io = open(filename, "rb")
-        self.io_hash = open(filename, "rb")
+        self.filename = filename
+        self.fp = 0
+        self.length = 0
+        self.hash_object = hashlib.md5()
 
     def __del__(self):
         if not self.closed:
             cmd = b"CLOZ," + self.session_id
             self.send_command(cmd, feedback=False)
         super(UploadSession, self).__del__()
+
+    def __len__(self):
+        return self.length
 
     def close(self):
         if self.closed:
@@ -141,9 +146,46 @@ class UploadSession(I2ftpClient):
 
         return status, ret
 
-    def verify(self):
-        if not self.closed;
+    def upload(self, filename):
+        f = open(filename, "rb")
 
+        while True:
+            dat = f.read(SIGNAL_PACKAGE_SIZE)
+            if not dat:
+                break
+
+            cmd = b"UPLD," + self.session_id + b"," + self.fp.to_bytes(8, "little", signed=False)
+
+            self.send_command(cmd, feedback=False)
+
+
+    def verify(self):
+        if not self.closed:
+            self.close()
+
+        cmd = "GETF,{}".format(self.filename).encode("utf-8")
+
+        # 获得会话ID
+        status, ret = self.send_command(cmd)
+
+        if not status:
+            return False
+
+        session_id = ret
+
+        status = False
+
+        cmd = b"CLOZ," + self.session_id
+
+        while not status:
+            status, ret = self.send_command(cmd)
+            if not status:
+                time.sleep(1)
+
+        ret = ret.decode("utf-8")
+        ret = self.hash_object.hexdigest() == ret
+
+        return ret
 
 
 class DownloadSession(I2ftpClient):
@@ -236,7 +278,7 @@ class DownloadSession(I2ftpClient):
 
         return status, ret
 
-    def to_file(self, filename, verbose=True, close_session_when_done=True):
+    def to_file(self, filename, verbose=True, close_session_when_finished=True):
         if self.flag_download_busy:
             raise Exception("client download busy, only one downloading quest a time")
         if self.closed:
@@ -276,7 +318,7 @@ class DownloadSession(I2ftpClient):
         if verbose:
             pbar.close()
 
-        if close_session_when_done:
+        if close_session_when_finished:
             status, hash_res = self.close()
         else:
             status = True
