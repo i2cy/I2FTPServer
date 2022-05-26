@@ -112,6 +112,40 @@ class I2ftpClient:
         return status, ret
 
 
+class UploadSession(I2ftpClient):
+
+    def __init__(self, session_id, filename, hostname,
+                 key=b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
+                 port=26842, logger=None, max_buffer_size=1000, timeout=15):
+        super(UploadSession, self).__init__(hostname, key, port, logger, max_buffer_size, timeout)
+        self.session_id = session_id
+        self.closed = False
+        self.io = open(filename, "rb")
+        self.io_hash = open(filename, "rb")
+
+    def __del__(self):
+        if not self.closed:
+            cmd = b"CLOZ," + self.session_id
+            self.send_command(cmd, feedback=False)
+        super(UploadSession, self).__del__()
+
+    def close(self):
+        if self.closed:
+            return self.closed, -1
+        cmd = b"CLOZ," + self.session_id
+        status, ret = self.send_command(cmd)
+        if status:
+            self.closed = True
+
+        super(UploadSession, self).disconnect()
+
+        return status, ret
+
+    def verify(self):
+        if not self.closed;
+
+
+
 class DownloadSession(I2ftpClient):
 
     def __init__(self, session_id, file_details, hostname,
@@ -251,10 +285,10 @@ class DownloadSession(I2ftpClient):
 
 
 if __name__ == '__main__':
-    test_server = "localhost"
+    test_server = "192.168.31.61"
     test_port = 26842
     test_key = b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>"
-    test_file = "tc.mp4"
+    test_file = "small.mp4"
     test_log = "test.log"
 
     clt = I2ftpClient(test_server, test_key, test_port, logger=Logger(test_log, echo=False))
