@@ -111,7 +111,7 @@ class FileSession:
         :param size: int, read size for one step
         :return: bool, calculation status (False for already done the calculation)
         """
-        if self.__flag_md5_available:
+        if self.__flag_md5_available or not self.readonly:
             return False
 
         if step:
@@ -446,7 +446,7 @@ class I2ftpServer:
             else:
                 # 关闭会话
                 session.close()
-                ret = b"\x01"
+                ret = b"\x01,"
 
             self.logger.DEBUG("{} {} file session closed (session ID: {})".format(
                 self.__header, header, session_id.hex()
@@ -591,15 +591,16 @@ class I2ftpServer:
                     pops.append(ele)
 
                 # 计算会话文件的md5校验和
-                ret = session.calc_hash(step=True)
-                if ret:
-                    full_speed_ts = time.time()
-                else:
-                    if session.flag_md5_available_oneshot:
-                        self.logger.DEBUG("{} {} md5 value of session \"{}\" calculated".format(
-                            self.__header, header, ele.hex()
-                        ))
-                        session.flag_md5_available_oneshot = False
+                if session.readonly:
+                    ret = session.calc_hash(step=True)
+                    if ret:
+                        full_speed_ts = time.time()
+                    else:
+                        if session.flag_md5_available_oneshot:
+                            self.logger.DEBUG("{} {} md5 value of session \"{}\" calculated".format(
+                                self.__header, header, ele.hex()
+                            ))
+                            session.flag_md5_available_oneshot = False
 
             if time.time() - full_speed_ts > FULL_SPEED_TIMEOUT:
                 time.sleep(0.01)

@@ -400,7 +400,7 @@ class DownloadSession(I2ftpClient):
 
 
 if __name__ == '__main__':
-    test_server = "i2cy.tech"
+    test_server = "192.168.31.61"
     test_port = 26842
     test_key = b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>"
     test_file = "small.mp4"
@@ -419,7 +419,6 @@ if __name__ == '__main__':
     assert isinstance(json_data, dict)
     print("    files under root: \n    {}".format([ele for ele in json_data if not json_data[ele]["is_dir"]]))
     print("    dirs under root: \n    {}".format([ele for ele in json_data if json_data[ele]["is_dir"]]))
-
     print("  > downloading test file {}".format(test_file))
     state, session = clt.download(test_file)
     if isinstance(session, DownloadSession):
