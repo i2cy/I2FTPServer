@@ -146,23 +146,70 @@ class UploadSession(I2ftpClient):
 
         return status, ret
 
-    def upload(self, filename):
+    def upload(self, filename, pre_upload_size=5, verbose=True, close_session_when_finished=True):
         f = open(filename, "rb")
+
+        cnt = 0
+
+        if verbose:
+            pbar = tqdm.tqdm(desc=pathlib.Path(filename).name, total=os.path.getsize(filename),
+                             unit="B", unit_scale=True)
 
         while True:
             dat = f.read(SIGNAL_PACKAGE_SIZE)
             if not dat:
                 break
 
+            pbar.update(len(dat))
+
             cmd = b"UPLD," + self.session_id + b"," + self.fp.to_bytes(8, "little", signed=False)
 
             self.send_command(cmd, feedback=False)
 
+            if cnt > pre_upload_size:
+                status, ret = self.get_feedback()
+                if not status:
+                    raise Exception(ret)
+                fed_fp = int().from_bytes(ret, "little", signed=False)
+                if fed_fp != self.fp - pre_upload_size * SIGNAL_PACKAGE_SIZE:
+                    raise Exception("expecting package loss, received index {} (expecting {})".format(
+                        int().from_bytes(ret, "little", signed=False),
+                        self.fp - pre_upload_size * SIGNAL_PACKAGE_SIZE))
+                last_fp = fed_fp
+                self.length = last_fp
 
-    def verify(self):
-        if not self.closed:
+            self.fp += len(dat)
+            cnt += 1
+
+        if verbose:
+            pbar.close()
+
+        for i in range(pre_upload_size):
+            status, ret = self.get_feedback()
+            if not status:
+                raise Exception(ret)
+            fed_fp = int().from_bytes(ret, "little", signed=False)
+
+            if i + 1 <= pre_upload_size:
+                if fed_fp != last_fp + SIGNAL_PACKAGE_SIZE:
+                    raise Exception("expecting package loss, received index {} (expecting {})".format(
+                        int().from_bytes(ret, "little", signed=False),
+                        last_fp + SIGNAL_PACKAGE_SIZE))
+                last_fp = fed_fp
+
+            else:
+                if fed_fp != self.fp:
+                    raise Exception("expecting package loss, received index {} (expecting {})".format(
+                        int().from_bytes(ret, "little", signed=False),
+                        self.fp))
+                last_fp = fed_fp
+
+            self.length = last_fp
+
+        if close_session_when_finished:
             self.close()
 
+    def verify(self):
         cmd = "GETF,{}".format(self.filename).encode("utf-8")
 
         # 获得会话ID
@@ -331,6 +378,7 @@ if __name__ == '__main__':
     test_port = 26842
     test_key = b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>"
     test_file = "small.mp4"
+    test_upload_name = "test_dir/little.mp4"
     test_log = "test.log"
 
     clt = I2ftpClient(test_server, test_key, test_port, logger=Logger(test_log, echo=False))
@@ -352,6 +400,9 @@ if __name__ == '__main__':
         state, md5_res = False, False
     print("<*> DOWN test result: {}".format(state))
     print("<*> file hash matching result: {}".format(md5_res))
+
+    print("<-> uploading test file {} as {} on server".format(test_file, test_upload_name))
+    state, session
 
     clt.disconnect()
     print("disconnected from server")
