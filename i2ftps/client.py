@@ -45,7 +45,7 @@ class I2ftpClient:
         feed = self.i2clt.get(timeout=self.timeout)
 
         status = False
-        ret = "timeout when receiving feedback"
+        ret = b"timeout when receiving feedback"
 
         if feed is not None:
             status, ret = feed.split(b",", 1)
@@ -111,6 +111,25 @@ class I2ftpClient:
 
         return status, ret
 
+    def upload(self, path):
+        cmd = "PULF,{}".format(path).encode("utf-8")
+
+        # 获取会话ID
+        status, ret = self.send_command(cmd)
+
+        if status:
+            session_id = ret
+            # 新建上传会话（新连接）
+            ret = UploadSession(session_id, path,
+                                self.i2clt.address[0], key=self.i2clt.key, port=self.i2clt.address[1],
+                                logger=self.logger, max_buffer_size=self.i2clt.max_buffer,
+                                timeout=self.timeout)
+            status, res = ret.connect()
+            if not status:
+                return status, res
+
+        return status, ret
+
 
 class UploadSession(I2ftpClient):
 
@@ -163,6 +182,9 @@ class UploadSession(I2ftpClient):
             pbar.update(len(dat))
 
             cmd = b"UPLD," + self.session_id + b"," + self.fp.to_bytes(8, "little", signed=False)
+            cmd += b"," + dat
+
+            self.hash_object.update(dat)
 
             self.send_command(cmd, feedback=False)
 
@@ -184,13 +206,13 @@ class UploadSession(I2ftpClient):
         if verbose:
             pbar.close()
 
-        for i in range(pre_upload_size):
+        for i in range(pre_upload_size + 1):
             status, ret = self.get_feedback()
             if not status:
                 raise Exception(ret)
             fed_fp = int().from_bytes(ret, "little", signed=False)
 
-            if i + 1 <= pre_upload_size:
+            if i < pre_upload_size:
                 if fed_fp != last_fp + SIGNAL_PACKAGE_SIZE:
                     raise Exception("expecting package loss, received index {} (expecting {})".format(
                         int().from_bytes(ret, "little", signed=False),
@@ -209,7 +231,7 @@ class UploadSession(I2ftpClient):
         if close_session_when_finished:
             self.close()
 
-    def verify(self):
+    def verify(self, timeout=20):
         cmd = "GETF,{}".format(self.filename).encode("utf-8")
 
         # 获得会话ID
@@ -222,12 +244,16 @@ class UploadSession(I2ftpClient):
 
         status = False
 
-        cmd = b"CLOZ," + self.session_id
+        cmd = b"CLOZ," + session_id
 
+        t0 = time.time()
         while not status:
             status, ret = self.send_command(cmd)
             if not status:
                 time.sleep(1)
+            if time.time() - t0 > timeout:
+                ret = b"failed"
+                break
 
         ret = ret.decode("utf-8")
         ret = self.hash_object.hexdigest() == ret
@@ -374,7 +400,7 @@ class DownloadSession(I2ftpClient):
 
 
 if __name__ == '__main__':
-    test_server = "192.168.31.61"
+    test_server = "i2cy.tech"
     test_port = 26842
     test_key = b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>"
     test_file = "small.mp4"
@@ -384,26 +410,51 @@ if __name__ == '__main__':
     clt = I2ftpClient(test_server, test_key, test_port, logger=Logger(test_log, echo=False))
 
     clt.connect()
-    print("test server connected")
+    print("  > test server connected")
 
-    print("<-> listing root files")
+    print("  > listing root files")
     state, data = clt.list(".")
     print("<*> LIST test result: {}".format(state))
-    print("    files under root: \n{}".format(json.dumps(data, indent=2)))
+    json_data = data
+    assert isinstance(json_data, dict)
+    print("    files under root: \n    {}".format([ele for ele in json_data if not json_data[ele]["is_dir"]]))
+    print("    dirs under root: \n    {}".format([ele for ele in json_data if json_data[ele]["is_dir"]]))
 
-    print("<-> downloading test file {}".format(test_file))
+    print("  > downloading test file {}".format(test_file))
     state, session = clt.download(test_file)
-    print("<*> GETF test result: {}".format(state))
     if isinstance(session, DownloadSession):
-        state, md5_res = session.to_file(test_file, True)
+        try:
+            state, md5_res = session.to_file(test_file, True)
+        except Exception as err:
+            state = err
+            md5_res = False
     else:
         state, md5_res = False, False
+    print("<*> GETF test result: {}".format(state))
     print("<*> DOWN test result: {}".format(state))
     print("<*> file hash matching result: {}".format(md5_res))
+    print("    file md5 sum: {}".format(session.hash_object.hexdigest()))
 
-    print("<-> uploading test file {} as {} on server".format(test_file, test_upload_name))
-    state, session
+    print("  > uploading test file {} as {} on server".format(test_file, test_upload_name))
+    state, session = clt.upload(test_upload_name)
+    if isinstance(session, UploadSession):
+        try:
+            session.upload(test_file, close_session_when_finished=False)
+        except Exception as err:
+            state = err
+    else:
+        state = False
+    print("<*> PULF test result: {}".format(state))
+    print("<*> UPLD test result: {}".format(state))
+    print("  > verifying data hash value on server")
+    t0 = time.time()
+    state = session.verify()
+    ts = time.time() - t0
+    print("<*> file hash matching result: {}".format(state))
+    print("    verification time: {:.4f}s".format(ts))
+    print("    file md5 sum: {}".format(session.hash_object.hexdigest()))
+    session.close()
 
     clt.disconnect()
-    print("disconnected from server")
-    print("test ended")
+    print("  > disconnected from server")
+    print("  > test ended")
