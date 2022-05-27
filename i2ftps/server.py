@@ -111,7 +111,7 @@ class FileSession:
         :param size: int, read size for one step
         :return: bool, calculation status (False for already done the calculation)
         """
-        if self.__flag_md5_available:
+        if self.__flag_md5_available or not self.readonly:
             return False
 
         if step:
