@@ -130,6 +130,41 @@ class I2ftpClient:
 
         return status, ret
 
+    def rename(self, path, filename):
+        cmd = b"FIOP,\x00," + "{},{}".format(path, filename).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def move(self, path, path_to):
+        cmd = b"FIOP,\x01," + "{},{}".format(path, path_to).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def copy(self, path, path_to):
+        cmd = b"FIOP,\x02," + "{},{}".format(path, path_to).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def remove(self, path):
+        cmd = b"FIOP,\x03," + "{}".format(path).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def mkdir(self, path):
+        cmd = b"FIOP,\x04," + "{}".format(path).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
 
 class UploadSession(I2ftpClient):
 
@@ -231,7 +266,7 @@ class UploadSession(I2ftpClient):
         if close_session_when_finished:
             self.close()
 
-    def verify(self, timeout=20):
+    def verify(self, timeout=30, close_when_finished=True):
         cmd = "GETF,{}".format(self.filename).encode("utf-8")
 
         # 获得会话ID
@@ -257,6 +292,9 @@ class UploadSession(I2ftpClient):
 
         ret = ret.decode("utf-8")
         ret = self.hash_object.hexdigest() == ret
+
+        if close_when_finished:
+            self.close()
 
         return ret
 
@@ -452,7 +490,6 @@ if __name__ == '__main__':
     print("<*> file hash matching result: {}".format(state))
     print("    verification time: {:.4f}s".format(ts))
     print("    file md5 sum: {}".format(session.hash_object.hexdigest()))
-    session.close()
 
     clt.disconnect()
     print("  > disconnected from server")
