@@ -4,8 +4,7 @@
 # Project: I2FTPServer
 # Filename: server
 # Created on: 2022/5/12
-
-
+import sys
 import threading
 import queue
 import time
@@ -554,6 +553,10 @@ class I2ftpServer:
 
             ret = b"\x01"
 
+        # 进程控制
+        elif cmd == b"PCTL":
+            ret = b"\x01," + os.getpid().to_bytes(4, "little", signed=False)
+
         return ret, ret_cmd
 
     def __file_session_manage_loop(self):
@@ -754,6 +757,7 @@ def main():
             pass
 
         server.stop()
+        sys.exit(0)
 
     else:
         pm.stop(config)

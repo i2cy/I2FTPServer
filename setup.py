@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="i2ftps",  # Replace with your own username
-    version="0.3.0",
+    version="0.3.8",
     author="I2cy Cloud",
     author_email="i2cy@outlook.com",
     description="A FTP server based on I2TCP",

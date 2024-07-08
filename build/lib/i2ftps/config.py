@@ -8,17 +8,15 @@
 
 import json
 import os
+import pathlib
 from i2cylib.utils.path import path_fixer
+from i2cylib.utils.bytes import random_keygen
 
 
 class Config(object):
 
     def __init__(self, filename=None):
-
-        if os.name == "nt":
-            default_root = r"C:/i2ftp"
-        else:
-            default_root = "/usr/share/i2ftp"
+        default_root = pathlib.Path.home().joinpath("i2ftp").as_posix()
 
         self.ftp_root = "{}/root".format(default_root)  # FTP 根目录
         self.tls_enabled = False  # 启用I2TCP的传输层加密
@@ -60,14 +58,17 @@ class Config(object):
 def generate_systemd(config_filename, addon=None):
     if addon is None or addon == 1:
         addon = ""
+    curren_user = os.getlogin()
     text = """[Unit]
 Description=I2FTP Server Service
 After=network.target
 
 [Service]
 Type=simple
-DynamicUser=true
-Restart=on-failure
+DynamicUser=false
+Group={}
+User={}
+Restart=Always
 RestartSec=20s
 ExecStart=/usr/local/bin/i2ftps -c \"{}\" start
 ExecStop=/usr/local/bin/i2ftps -c \"{}\" stop
@@ -76,7 +77,7 @@ LimitNOFILE=1048576
 [Install]
 WantedBy=multi-user.target
 Alias=i2ftps{}.service
-""".format(config_filename, config_filename, addon)
+""".format(curren_user, curren_user, config_filename, config_filename, addon)
 
     return text
 
@@ -215,10 +216,7 @@ def main():
 
     # 导出配置文件至
     config_path = None
-    if os.name == "nt":
-        default_config = "C:/i2ftp/server_conf.json"
-    else:
-        default_config = "/usr/share/i2ftp/server_conf.json"
+    default_config = pathlib.Path.home().joinpath("i2ftp").joinpath("server_conf.json").as_posix()
 
     while config_path is None:
         config_path = input("step 8/{}: Saving config file to...\n"
@@ -259,14 +257,23 @@ def main():
                     addon += 1
                     path = "/etc/systemd/system/i2ftps{}.service".format(addon)
                 text = generate_systemd(config_path, addon)
-                with open(path, "w") as f:
+                with open("/tmp/i2ftp-setup_1.cache", "w") as f:
                     f.write(text)
                     f.close()
                 if addon == 1:
                     addon = ""
-                os.system("systemctl enable i2ftps{}".format(addon))
+                with open("/tmp/i2ftp-setup_2.cache", "w") as f:
+                    f.write("#!/bin/sh\n"
+                            "mv /tmp/i2ftp-setup_1.cache {}\n"
+                            "systemctl enable i2ftps{}.service".format(path, addon))
+                    f.close()
+                print(" ==> root permission required, please make sure you are one of Sudoers")
+                os.system("sudo bash /tmp/i2ftp-setup_2.cache")
+
             except Exception as err:
                 print("error: {}".format(err))
+
+            os.system("rm /tmp/i2ftp-setup_*.cache")
 
 
 if __name__ == '__main__':

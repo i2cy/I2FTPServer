@@ -13,7 +13,6 @@ from i2cylib.utils.logger import Logger
 from i2cylib.utils import args
 from i2ftps.config import Config
 
-
 LOGGER = Logger(level="INFO")
 KILL_TIMEOUT = 20
 
@@ -36,26 +35,34 @@ def stop(config):
 
     # 发送PCTL命令
     try:
-        clt.send(b"PCTL")
+        clt.send(b"PCTL,0")
+        feedback = clt.get(timeout=5)
+        ret, pid = feedback.split(b",", 1)
+        pid = int().from_bytes(pid, "little", signed=False)
+        LOGGER.INFO("[Main] got server process ID: {}".format(pid))
+        clt.reset()
     except Exception as err:
         LOGGER.ERROR("[Main] server respond incorrectly, {}".format(err))
         return
 
     # 发送终止信号
     try:
-        feedback = clt.get(timeout=5)
-        ret, pid = feedback.split(b",", 1)
-        pid = int().from_bytes(pid, "little", signed=False)
         if os.name == 'nt':
             os.system("taskkill -f -t -pid {}".format(pid))
         else:
             os.kill(pid, signal.SIGINT)
             t0 = time.time()
             while True:
+                time.sleep(0.5)
                 if time.time() - t0 > KILL_TIMEOUT:
                     LOGGER.WARNING("[Main] process may not be killed, timeout")
                     break
+                try:
+                    os.kill(pid, signal.SIGUSR1)
+                except ProcessLookupError:
+                    LOGGER.INFO("[Main] process killed")
+                    break
     except Exception as err:
-        LOGGER.ERROR("[Main] failed to decode feedback from server or failed to kill process, {}".format(
+        LOGGER.ERROR("[Main] failed to kill process, {}".format(
             err
         ))

@@ -130,6 +130,41 @@ class I2ftpClient:
 
         return status, ret
 
+    def rename(self, path, filename):
+        cmd = b"FIOP,\x00," + "{},{}".format(path, filename).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def move(self, path, path_to):
+        cmd = b"FIOP,\x01," + "{},{}".format(path, path_to).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def copy(self, path, path_to):
+        cmd = b"FIOP,\x02," + "{},{}".format(path, path_to).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def remove(self, path):
+        cmd = b"FIOP,\x03," + "{}".format(path).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
+    def mkdir(self, path):
+        cmd = b"FIOP,\x04," + "{}".format(path).encode("utf-8")
+
+        status, ret = self.send_command(cmd)
+
+        return status, ret
+
 
 class UploadSession(I2ftpClient):
 
@@ -231,7 +266,7 @@ class UploadSession(I2ftpClient):
         if close_session_when_finished:
             self.close()
 
-    def verify(self, timeout=20):
+    def verify(self, timeout=30, close_when_finished=True):
         cmd = "GETF,{}".format(self.filename).encode("utf-8")
 
         # 获得会话ID
@@ -258,6 +293,9 @@ class UploadSession(I2ftpClient):
         ret = ret.decode("utf-8")
         ret = self.hash_object.hexdigest() == ret
 
+        if close_when_finished:
+            self.close()
+
         return ret
 
 
@@ -266,7 +304,7 @@ class DownloadSession(I2ftpClient):
     def __init__(self, session_id, file_details, hostname,
                  key=b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>",
                  port=26842, logger=None, max_buffer_size=1000, timeout=15):
-        
+
         super(DownloadSession, self).__init__(hostname, key, port, logger, max_buffer_size, timeout)
         self.session_id = session_id
         self.details = file_details
@@ -391,6 +429,8 @@ class DownloadSession(I2ftpClient):
         if verbose:
             pbar.close()
 
+        f.close()
+
         if close_session_when_finished:
             status, hash_res = self.close()
         else:
@@ -398,42 +438,63 @@ class DownloadSession(I2ftpClient):
 
         return status, hash_res
 
+    def to_bytes(self, verbose=True, close_session_when_finished=True, display="retrieving") -> bytes:
+        if self.flag_download_busy:
+            raise Exception("client download busy, only one downloading quest a time")
+        if self.closed:
+            raise Exception("session closed")
+
+        ret = b""
+        received = 0
+
+        cmd = b"DOWN," + self.session_id + b","
+        cmd += b"\x00" * 8 + b","
+        cmd += int(self.length).to_bytes(8, "little", signed=False)
+        self.flag_download_busy = True
+        self.send_command(cmd, feedback=False)
+
+        status, hash_res = False, -1
+        if verbose:
+            pbar = tqdm.tqdm(desc=display, total=self.length,
+                             unit="B", unit_scale=True)
+
+        while received < self.length:
+            status, fed = self.get_feedback()
+            if not status:
+                raise Exception(fed)
+            if received != int().from_bytes(fed[:8], "little", signed=False):
+                if verbose:
+                    pbar.close()
+                raise Exception("expecting package loss, received index {} (expecting {})".format(
+                    int().from_bytes(fed[:8], "little", signed=False), received
+                ))
+            dat = fed[9:]
+            received += len(dat)
+            ret += dat
+            if verbose:
+                pbar.update(len(dat))
+
+        if verbose:
+            pbar.close()
+
+        if close_session_when_finished:
+            self.close()
+
+        return ret
+
 
 if __name__ == '__main__':
-    test_server = "i2cy.tech"
+    test_server = "192.168.31.61"
     test_port = 26842
     test_key = b"&90%]>__AdfI2FTP$F%_+@$^:aBasicKey%_+@-$^:>"
     test_file = "small.mp4"
-    test_upload_name = "test_dir/little.mp4"
+    test_upload_name = "small.mp4"
     test_log = "test.log"
 
     clt = I2ftpClient(test_server, test_key, test_port, logger=Logger(test_log, echo=False))
 
     clt.connect()
     print("  > test server connected")
-
-    print("  > listing root files")
-    state, data = clt.list(".")
-    print("<*> LIST test result: {}".format(state))
-    json_data = data
-    assert isinstance(json_data, dict)
-    print("    files under root: \n    {}".format([ele for ele in json_data if not json_data[ele]["is_dir"]]))
-    print("    dirs under root: \n    {}".format([ele for ele in json_data if json_data[ele]["is_dir"]]))
-
-    print("  > downloading test file {}".format(test_file))
-    state, session = clt.download(test_file)
-    if isinstance(session, DownloadSession):
-        try:
-            state, md5_res = session.to_file(test_file, True)
-        except Exception as err:
-            state = err
-            md5_res = False
-    else:
-        state, md5_res = False, False
-    print("<*> GETF test result: {}".format(state))
-    print("<*> DOWN test result: {}".format(state))
-    print("<*> file hash matching result: {}".format(md5_res))
-    print("    file md5 sum: {}".format(session.hash_object.hexdigest()))
 
     print("  > uploading test file {} as {} on server".format(test_file, test_upload_name))
     state, session = clt.upload(test_upload_name)
@@ -453,7 +514,28 @@ if __name__ == '__main__':
     print("<*> file hash matching result: {}".format(state))
     print("    verification time: {:.4f}s".format(ts))
     print("    file md5 sum: {}".format(session.hash_object.hexdigest()))
-    session.close()
+
+    print("  > listing root files")
+    state, data = clt.list(".")
+    print("<*> LIST test result: {}".format(state))
+    json_data = data
+    assert isinstance(json_data, dict)
+    print("    files under root: \n    {}".format([ele for ele in json_data if not json_data[ele]["is_dir"]]))
+    print("    dirs under root: \n    {}".format([ele for ele in json_data if json_data[ele]["is_dir"]]))
+    print("  > downloading test file {}".format(test_file))
+    state, session = clt.download(test_file)
+    if isinstance(session, DownloadSession):
+        try:
+            state, md5_res = session.to_file(test_file, True)
+        except Exception as err:
+            state = err
+            md5_res = False
+    else:
+        state, md5_res = False, False
+    print("<*> GETF test result: {}".format(state))
+    print("<*> DOWN test result: {}".format(state))
+    print("<*> file hash matching result: {}".format(md5_res))
+    print("    file md5 sum: {}".format(session.hash_object.hexdigest()))
 
     clt.disconnect()
     print("  > disconnected from server")
