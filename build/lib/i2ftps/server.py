@@ -551,7 +551,7 @@ class I2ftpServer:
                 except Exception as err:
                     return b"\x00," + str(err).encode("utf-8"), ret_cmd
 
-            ret = b"\x01"
+            ret = b"\x01,operation succeed"
 
         # 进程控制
         elif cmd == b"PCTL":
